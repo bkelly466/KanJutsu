@@ -1,7 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/api/jisho",
+      "source": "/api/jishoapi",
       "destination": "https://jisho.org/api/v1/search/words"
     }
   ]
