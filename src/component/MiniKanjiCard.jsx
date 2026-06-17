@@ -6,7 +6,14 @@ export default function MiniKanjiCard({ kanjiData, setExpandedKanji, expandedKan
     return (
         <div  
             className={`card shadow-sm text-center clickable-card ${isSelected ? 'border-secondary border-2' : 'border-light'}`} 
-            style={{ width: '120px', cursor: 'pointer' }}
+            style={{ 
+                    width: '120px', 
+                    flex: '0 0 auto',
+                    cursor: 'pointer',
+                    borderColor: isSelected ? 'var(--bs-secondary)' : 'var(--bs-border-color-translucent)',
+                    backgroundColor: isSelected ? '#f8f9fa' : '#ffffff',
+                    transition: 'transform 0.15s ease-in-out'
+                  }}
             onClick={() => setExpandedKanji(kanjiData.kanji)}
         >
             <div className="card-body d-flex flex-column justify-content-center align-items-center p-3">

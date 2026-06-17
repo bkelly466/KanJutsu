@@ -114,7 +114,13 @@ export default function Query(){
                     <div className="container">
                         
                         {/* Always show ALL mini cards in a row at the top */}
-                        <div className="d-flex flex-wrap gap-3 mb-4">
+                        <div 
+                            className="d-flex flex-nowrap gap-3 pb-2 w-100" 
+                            style={{ 
+                                overflowX: 'auto', 
+                                WebkitOverflowScrolling: 'touch' 
+                                }}
+                        >
                             {kanjiList.map((kanjiData) => 
                                     <MiniKanjiCard key={kanjiData.kanji} kanjiData={kanjiData} setExpandedKanji={setExpandedKanji} expandedKanji={expandedKanji} />
                             )}
