@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import './Query.css';
 import MiniKanjiCard from './MiniKanjiCard';
 import DetailedInfoCard from './DetailedInfoCard';
 
@@ -35,16 +34,19 @@ export default function Query(){
         setIsLoading(true);
         setExpandedKanji(null);
 
-
+        // Kanji data pulled from kanjiapi.dev and enriched with common words from the jisho api.
         try {
             const fetchPromises = kanjiToSearch.map(async (char) => {
                 const response = await fetch(`https://kanjiapi.dev/v1/kanji/${encodeURIComponent(char)}`);
                 if (!response.ok) return null;
                 const kanjiData = await response.json()
                 
-                //Add common words from Jisho API here.
+                //Add common words from Jisho API here. 
                 let commonWords = [];
                 try {
+                    //The Jisho API doesn't send permissive CORS headers for client side browser requests. 
+                    // The same origin policy is only enforced by web browsers, not by servers. So I created
+                    // I used a Vite proxy server (vite.config.js) for development and a serverless function is used when deployed on Vercel (vercel.json) 
                     const jishoResponse = await fetch(`/api/jishoapi?keyword=${encodeURIComponent(char)}`)
                     if (!jishoResponse.ok) return null;
                     const jishoData = await jishoResponse.json();
