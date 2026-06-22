@@ -1,0 +1,52 @@
+/* Container holding both elements */
+.brand-badge-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 600px;
+  padding: 15px 0;
+  margin-bottom: 5px;
+}
+
+/* Shrunk, centered logo acting as a backdrop */
+.brand-logo-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 200px; /* Significantly smaller scale */
+  width: auto;
+  object-fit: contain;
+  opacity: 0.25; /* Softened so text remains completely readable */
+  z-index: 1;
+  pointer-events: none; /* Prevents users from accidentally dragging the image */
+}
+
+/* Title text spread across the top */
+.brand-title {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 4.2rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 8px; /* Spreads the title text widely over the logo width */
+  margin-bottom: 7px;
+  margin-top: 10px;
+  position: relative;
+  z-index: 2; /* Forces text to layer strictly on top of the PNG */
+  background: linear-gradient(135deg, #1a202c 75%, #dc3545);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.6); /* Keeps text crisp over the graphic */
+}
+
+/* Clean accent divider */
+.brand-divider {
+  width: 300px;
+  height: 2px;
+  background-color: #dc3545;
+  border-radius: 2px;
+  margin: 40px auto 16px auto;
+}
