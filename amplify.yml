@@ -29,7 +29,7 @@ frontend:
         # Fail the build loudly if the URL is missing, instead of silently
         # shipping a bundle that falls back to /api/jishoapi (which 404s in
         # production and breaks every Jisho lookup).
-        - test -n "$VITE_JISHO_PROXY_URL" || (echo "ERROR: jishoProxyUrl missing from amplify_outputs.json — backend deploy may have failed" && exit 1)
+        - test -n "$VITE_JISHO_PROXY_URL" || (echo "ERROR - jishoProxyUrl missing from amplify_outputs.json, backend deploy may have failed" && exit 1)
     build:
       commands:
         - npm run build
