@@ -61,6 +61,7 @@ export default function DetailedInfoCard({ setExpandedKanji, selectedData, onOpe
                 </div>
 
                 <div className="d-flex flex-wrap gap-4 mb-4 text-muted small">
+                    {selectedData.stroke_count && <div><strong>Strokes:</strong> {selectedData.stroke_count}</div>}
                     {selectedData.jlpt && <div><strong>JLPT:</strong> N{selectedData.jlpt}</div>}
                     {selectedData.grade && <div><strong>Grade Level:</strong> {selectedData.grade}</div>}
                     {selectedData.freq_mainichi_shinbun && <div><strong>Frequency Rank: </strong> {selectedData.freq_mainichi_shinbun}</div>}

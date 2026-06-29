@@ -83,3 +83,14 @@ export async function searchKanji(query) {
 
   return entries.filter(Boolean);
 }
+
+/**
+ * Fetch a single kanji, enriched with its common words. Used by the kanji
+ * info overlay (tap-a-character-to-explore). Returns null if not found.
+ */
+export async function fetchKanjiEntry(char) {
+  const details = await fetchKanjiDetails(char);
+  if (!details) return null;
+  const commonWords = await fetchCommonWords(char);
+  return { ...details, commonWords };
+}
