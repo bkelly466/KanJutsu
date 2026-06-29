@@ -62,10 +62,11 @@
   line-height: inherit;
   cursor: pointer;
 
-  /* Subtle underline so the user knows it's interactive               */
+  /* Subtle underline so the user knows it's interactive. The offset gives
+     the dotted line breathing room from the character so it stays readable. */
   text-decoration: underline;
   text-decoration-style: dotted;
-  text-underline-offset: 2px;
+  text-underline-offset: 5px;
 
   /* Smooth colour transition on hover                                 */
   transition: color 0.15s ease-in-out;
