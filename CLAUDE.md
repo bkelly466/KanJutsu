@@ -2,6 +2,11 @@
 
 A Japanese study tool. Started as a Kanji dictionary lookup (kanjiapi.dev + Jisho API), now also has a flashcard study mode.
 
+## Session start (read first)
+Before doing any work, read `HANDOFF.md` in the project root — it captures where we
+left off, the current state of `main`, and the next planned feature. This file is
+the resume point between conversations; keep it updated when finishing a work session.
+
 ## Stack
 - Frontend: React (no framework like Next.js — plain React app)
 - Backend: AWS Amplify Gen 2 — TypeScript backend defined in `amplify/` (data + auth)
