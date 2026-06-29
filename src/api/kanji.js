@@ -27,7 +27,9 @@ const KANJI_API_BASE = 'https://kanjiapi.dev/v1/kanji';
 //   the amplify.yml preBuild step, so the client calls Lambda directly.
 // In local dev:  VITE_JISHO_PROXY_URL is undefined, so we fall back to
 //   '/api/jishoapi', which the Vite dev server proxies to Jisho.
-const JISHO_PROXY =
+// Exported so the word-lookup service (src/api/words.js) can reuse the exact
+// same proxy resolution instead of duplicating the env logic.
+export const JISHO_PROXY =
   import.meta.env.VITE_JISHO_PROXY_URL || '/api/jishoapi';
 const MAX_COMMON_WORDS = 10;
 
