@@ -5,12 +5,16 @@
 // every sense with its parts of speech.
 
 import { renderWithClickableKanji } from '../utils/clickableKanji';
+import { getVerbForms } from '../utils/conjugate';
 
 // onKanjiClick: function(char) — called when a kanji in the word is clicked.
 //   Passed down from Query, which switches to Kanji mode and runs the lookup.
 // onOpenDeckPicker: function(item, type) — opens the "Add to Deck" picker.
 export default function WordDetailCard({ wordData, onClose, onKanjiClick, onOpenDeckPicker }) {
   if (!wordData) return null;
+
+  // Verbs get an extra block showing dictionary + polite (ます) forms; null otherwise.
+  const verbForms = getVerbForms(wordData);
 
   return (
     <div className="card shadow-sm border-light mb-3 w-100">
@@ -57,6 +61,29 @@ export default function WordDetailCard({ wordData, onClose, onKanjiClick, onOpen
             </span>
           ))}
         </div>
+
+        {/* Verb forms (verbs only): dictionary form + polite present. */}
+        {verbForms && (
+          <div className="mb-4 p-3 bg-light rounded">
+            <div className="small text-body-secondary fw-semibold mb-2">Verb forms</div>
+            <div className="d-flex flex-column gap-1">
+              <div>
+                <span className="text-muted me-2">Dictionary:</span>
+                <strong className="fs-5">{verbForms.base.word}</strong>
+                {verbForms.base.reading && verbForms.base.reading !== verbForms.base.word && (
+                  <span className="text-muted ms-1">({verbForms.base.reading})</span>
+                )}
+              </div>
+              <div>
+                <span className="text-muted me-2">Polite:</span>
+                <strong className="fs-5">{verbForms.polite.word}</strong>
+                {verbForms.polite.reading && verbForms.polite.reading !== verbForms.polite.word && (
+                  <span className="text-muted ms-1">({verbForms.polite.reading})</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Senses: Jisho groups definitions into senses, each with its own
             parts of speech (e.g. "Ichidan verb, transitive verb"). */}

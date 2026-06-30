@@ -165,6 +165,25 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
                   </>
                 )}
               </div>
+
+              {/* Verb forms (word cards only). Show the dictionary form when it
+                  differs from the front (e.g. する-nouns: front 勉強 → 勉強する),
+                  and always the polite ます form. */}
+              {isWord && current.back.verbForms && (
+                <div className="text-muted small mt-3">
+                  {current.back.verbForms.base.word !== current.front && (
+                    <div>Dictionary: <strong>{current.back.verbForms.base.word}</strong></div>
+                  )}
+                  <div>
+                    Polite: <strong>{current.back.verbForms.polite.word}</strong>
+                    {current.back.verbForms.polite.reading &&
+                      current.back.verbForms.polite.reading !== current.back.verbForms.polite.word && (
+                        <span> ({current.back.verbForms.polite.reading})</span>
+                      )}
+                  </div>
+                </div>
+              )}
+
               {(current.jlpt || current.grade) && (
                 <div className="text-muted mt-2" style={{ fontSize: '0.75rem' }}>
                   {/* Word JLPT is already like "N5"; kanji JLPT is a number. */}

@@ -1,4 +1,5 @@
 import { SRS_DEFAULTS } from './srs';
+import { getVerbForms } from './conjugate';
 
 /**
  * Cards come in two flavours now:
@@ -80,6 +81,9 @@ export function createWordCard(wordData) {
       // Flatten the first few senses into a readable string.
       meanings: (wordData.meanings || []).join(', '),
       reading: wordData.reading || '',
+      // For verbs, store the conjugated forms so the flashcard back can show
+      // them. null for non-verbs. Computed once at add time.
+      verbForms: getVerbForms(wordData),
     },
     // Word JLPT comes as an array (e.g. ["N5"]); keep the first level for display.
     jlpt: wordData.jlpt?.[0] || null,
