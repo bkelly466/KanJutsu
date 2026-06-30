@@ -15,7 +15,8 @@ export function useWordSearch() {
   const [error, setError] = useState('');
 
   const search = async (query) => {
-    if (!query.trim()) {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
       setError('Please enter a word to look up.');
       setResults([]);
       return;
@@ -26,10 +27,10 @@ export function useWordSearch() {
     setIsLoading(true);
 
     try {
-      const words = await searchWords(query);
+      const words = await searchWords(trimmedQuery);
       setResults(words);
       if (words.length === 0) {
-        setError(`No words found for "${query.trim()}".`);
+        setError(`No words found for "${trimmedQuery}".`);
       }
     } catch (err) {
       setError(err.message || 'Something went wrong.');
