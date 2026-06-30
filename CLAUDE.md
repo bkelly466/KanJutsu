@@ -38,5 +38,5 @@ Agent definitions live in `.claude/agents/` and are the default way work gets de
 - `feature-builder` — new features, pages, components, study modes
 - `bug-fixer` — broken/unexpected behavior
 - `code-reviewer` — pre-merge review (read-only, no edits)
-- `deploy-manager` — git commit/push + Vercel deploy checks
+- `deploy-manager` — git commit/push + AWS Amplify deploy checks
 - `content-strategist` — researches and proposes designs for study mechanics (scheduling, quiz formats, progress tracking) before code is written; hand off to feature-builder once a design is chosen

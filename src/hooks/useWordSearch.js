@@ -5,9 +5,9 @@ import { searchWords } from '../api/words';
  * Drives a word (vocabulary) lookup: runs the search and exposes results plus
  * loading/error state for the UI to render.
  *
- * This mirrors useKanjiSearch on purpose so the two search modes feel the same
- * to the components that use them. The main difference: a word search accepts
- * any text (English, kana, or kanji), so there's no kanji-only validation here.
+ * The search is word-first and accepts any text (English, kana, or kanji), so
+ * there's no kanji-only validation here. Individual kanji are explored by
+ * tapping them, which opens the kanji info overlay.
  */
 export function useWordSearch() {
   const [results, setResults] = useState([]);
@@ -15,7 +15,8 @@ export function useWordSearch() {
   const [error, setError] = useState('');
 
   const search = async (query) => {
-    if (!query.trim()) {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
       setError('Please enter a word to look up.');
       setResults([]);
       return;
@@ -26,10 +27,10 @@ export function useWordSearch() {
     setIsLoading(true);
 
     try {
-      const words = await searchWords(query);
+      const words = await searchWords(trimmedQuery);
       setResults(words);
       if (words.length === 0) {
-        setError(`No words found for "${query.trim()}".`);
+        setError(`No words found for "${trimmedQuery}".`);
       }
     } catch (err) {
       setError(err.message || 'Something went wrong.');
