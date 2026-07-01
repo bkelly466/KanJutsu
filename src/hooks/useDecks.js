@@ -67,7 +67,7 @@ export function useDecks(enabled) {
             id: d.id,
             name: d.name,
             description: d.description || '',
-            category: d.category || { type: 'custom', value: '' },
+            category: parseJson(d.category) || { type: 'custom', value: '' },
             createdAt: d.createdAt,
             cards: rawCards.filter((c) => c.deckId === d.id).map(toUiCard),
           }))
@@ -81,7 +81,8 @@ export function useDecks(enabled) {
     const { data, errors } = await client.models.Deck.create({
       name,
       description: description || '',
-      category: category || { type: 'custom', value: '' },
+      // a.json() (AWSJSON) fields must be sent as a JSON *string*.
+      category: JSON.stringify(category || { type: 'custom', value: '' }),
     });
     if (errors) {
       console.error(errors);
@@ -91,7 +92,12 @@ export function useDecks(enabled) {
   };
 
   const updateDeck = async (deckId, updates) => {
-    await client.models.Deck.update({ id: deckId, ...updates });
+    const payload = { id: deckId, ...updates };
+    // Stringify the category JSON field if this update touches it.
+    if (payload.category != null && typeof payload.category !== 'string') {
+      payload.category = JSON.stringify(payload.category);
+    }
+    await client.models.Deck.update(payload);
   };
 
   const deleteDeck = async (deckId) => {
@@ -133,6 +139,22 @@ export function useDecks(enabled) {
 
 // --- mapping helpers --------------------------------------------------------
 
+/**
+ * Parse an a.json() (AWSJSON) value read back from the API. AppSync returns it
+ * as a JSON string, but we defensively handle an already-parsed object too.
+ */
+function parseJson(value) {
+  if (value == null) return null;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return value;
+}
+
 /** Map a built card (from createCard/createWordCard) to a Card model record. */
 function toModelInput(deckId, card) {
   return {
@@ -140,7 +162,7 @@ function toModelInput(deckId, card) {
     type: card.type,
     cardKey: card.key,
     front: card.front,
-    back: card.back, // JSON field
+    back: JSON.stringify(card.back ?? {}), // a.json() (AWSJSON) must be a string
     kanji: card.kanji ?? null,
     word: card.word ?? null,
     reading: card.reading ?? null,
@@ -162,7 +184,7 @@ function toUiCard(record) {
     type: record.type,
     key: record.cardKey,
     front: record.front,
-    back: record.back || {},
+    back: parseJson(record.back) || {},
     kanji: record.kanji,
     word: record.word,
     reading: record.reading,
