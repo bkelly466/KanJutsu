@@ -17,10 +17,12 @@ export default function AddToDeckModal({ decks, item, type = 'kanji', onAdd, onC
     setAddedDeckIds(prev => new Set([...prev, deckId]));
   };
 
-  const handleCreate = (deckData) => {
-    const newId = onCreateDeck(deckData);
+  const handleCreate = async (deckData) => {
+    // createDeck is async now (cloud); await the new id before adding the card.
+    // It returns null if the create failed (error shown via the banner).
+    const newId = await onCreateDeck(deckData);
     setShowCreate(false);
-    handleAdd(newId);
+    if (newId) handleAdd(newId);
   };
 
   const isInDeck = (deck) =>

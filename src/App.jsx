@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react';
 import './App.css';
 import Query from './components/Query';
 import DeckList from './components/DeckList';
@@ -19,15 +20,23 @@ function App() {
   // `type` is 'kanji' or 'word'.
   const [deckPickerTarget, setDeckPickerTarget] = useState(null);
 
+  // Current auth state. `user` is set when signed in, undefined when not.
+  // The dictionary works regardless; only the Decks tab uses this.
+  const { user, signOut } = useAuthenticator((context) => [context.user]);
+  const authed = !!user;
+
   const {
     decks,
+    isLoading,
+    error,
+    clearError,
     createDeck,
     updateDeck,
     deleteDeck,
     addCardToDeck,
     removeCardFromDeck,
     updateCardSRS,
-  } = useDecks();
+  } = useDecks(authed);
 
   const selectedDeck = decks.find(d => d.id === selectedDeckId);
   const totalDueCount = decks.reduce(
@@ -50,8 +59,13 @@ function App() {
   const handleBackToDetail = () => setDecksView('detail');
 
   // type defaults to 'kanji' so the kanji detail card can keep calling it
-  // with a single argument.
+  // with a single argument. Adding cards requires login, so if the user isn't
+  // signed in we send them to the Decks tab (which shows the login form).
   const handleOpenDeckPicker = (item, type = 'kanji') => {
+    if (!authed) {
+      setActiveTab('decks');
+      return;
+    }
     setDeckPickerTarget({ item, type });
   };
 
@@ -87,6 +101,40 @@ function App() {
         onDeleteDeck={deleteDeck}
         onSelectDeck={handleSelectDeck}
       />
+    );
+  };
+
+  // The Decks tab gates on login: logged-out users see the sign-in form;
+  // logged-in users see their decks plus a sign-out control.
+  const renderDecksTab = () => {
+    if (!authed) {
+      return (
+        <div className="text-center">
+          <p className="text-muted mb-3">Log in to create and study flashcard decks.</p>
+          <Authenticator />
+        </div>
+      );
+    }
+    return (
+      <>
+        {error && (
+          <div className="alert alert-warning alert-dismissible d-flex justify-content-between align-items-center" role="alert">
+            <span>{error}</span>
+            <button type="button" className="btn-close" aria-label="Dismiss" onClick={clearError}></button>
+          </div>
+        )}
+        <div className="d-flex justify-content-end align-items-center gap-2 mb-3">
+          <span className="text-muted small">{user?.signInDetails?.loginId}</span>
+          <button className="btn btn-sm btn-outline-secondary" onClick={signOut}>
+            Sign out
+          </button>
+        </div>
+        {isLoading && decks.length === 0 ? (
+          <p className="text-muted text-center py-4">Loading your decks…</p>
+        ) : (
+          renderDecksContent()
+        )}
+      </>
     );
   };
 
@@ -129,7 +177,7 @@ function App() {
         {activeTab === 'dictionary' ? (
           <Query onOpenDeckPicker={handleOpenDeckPicker} />
         ) : (
-          renderDecksContent()
+          renderDecksTab()
         )}
 
         {deckPickerTarget && (

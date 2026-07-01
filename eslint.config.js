@@ -5,7 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // 'dist' is the build output; '.amplify' holds generated backend/CDK
+  // artifacts from `ampx sandbox` (gitignored) — neither should be linted.
+  globalIgnores(['dist', '.amplify']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

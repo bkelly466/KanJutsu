@@ -1,17 +1,60 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 
-/*== STEP 1 ===============================================================
-The section below creates a Todo database table with a "content" field. Try
-adding a new "isDone" field as a boolean. The authorization rule below
-specifies that any unauthenticated user can "create", "read", "update", 
-and "delete" any "Todo" records.
-=========================================================================*/
+/**
+ * KanJutsu flashcard data model.
+ *
+ * Two models with a one-to-many relationship:
+ *   Deck  --< Card        (one deck has many cards)
+ *
+ * Authorization: every model uses `allow.owner()`, so a signed-in user can only
+ * see and modify their OWN decks and cards. Combined with the `userPool` default
+ * auth mode below, this means the flashcard data requires login — which is
+ * exactly the gating we want (the dictionary stays public because it doesn't use
+ * this API at all; it talks to the Jisho/kanji proxies directly).
+ */
 const schema = a.schema({
-  Todo: a
+  Deck: a
     .model({
-      content: a.string(),
+      name: a.string().required(),
+      description: a.string(),
+      // Deck category, e.g. { type: 'jlpt', value: 'N5' }. Kept as JSON so the
+      // shape can evolve without a schema migration.
+      category: a.json(),
+      // One deck has many cards. 'deckId' is the foreign-key field stored on Card.
+      cards: a.hasMany('Card', 'deckId'),
     })
-    .authorization((allow) => [allow.guest()]),
+    .authorization((allow) => [allow.owner()]),
+
+  Card: a
+    .model({
+      // Link back to the parent deck (the other side of the relationship).
+      deckId: a.id().required(),
+      deck: a.belongsTo('Deck', 'deckId'),
+
+      // Card identity / content
+      type: a.string().required(), // 'kanji' | 'word'
+      cardKey: a.string().required(), // dedupe key: the kanji char, or "word::reading"
+      front: a.string().required(),
+
+      // Display payload revealed on flip (meanings, readings, verb forms, etc.).
+      // Stored as JSON to mirror the existing card.back shape exactly.
+      back: a.json(),
+
+      // Optional metadata used by the UI / SRS
+      kanji: a.string(),
+      word: a.string(),
+      reading: a.string(),
+      jlpt: a.string(),
+      grade: a.integer(),
+
+      // Spaced-repetition state (SM-2). Defaults make a fresh card due immediately.
+      repetitions: a.integer().default(0),
+      easeFactor: a.float().default(2.5),
+      interval: a.integer().default(0),
+      nextReviewDate: a.string(),
+      addedAt: a.string(),
+    })
+    .authorization((allow) => [allow.owner()]),
 });
 
 export type Schema = ClientSchema<typeof schema>;
@@ -19,35 +62,8 @@ export type Schema = ClientSchema<typeof schema>;
 export const data = defineData({
   schema,
   authorizationModes: {
-    defaultAuthorizationMode: 'identityPool',
+    // Require a signed-in Cognito user for all data operations. The dictionary
+    // does not use this API, so it remains usable without logging in.
+    defaultAuthorizationMode: 'userPool',
   },
 });
-
-/*== STEP 2 ===============================================================
-Go to your frontend source code. From your client-side code, generate a
-Data client to make CRUDL requests to your table. (THIS SNIPPET WILL ONLY
-WORK IN THE FRONTEND CODE FILE.)
-
-Using JavaScript or Next.js React Server Components, Middleware, Server 
-Actions or Pages Router? Review how to generate Data clients for those use
-cases: https://docs.amplify.aws/gen2/build-a-backend/data/connect-to-API/
-=========================================================================*/
-
-/*
-"use client"
-import { generateClient } from "aws-amplify/data";
-import type { Schema } from "@/amplify/data/resource";
-
-const client = generateClient<Schema>() // use this Data client for CRUDL requests
-*/
-
-/*== STEP 3 ===============================================================
-Fetch records from the database and use them in your frontend component.
-(THIS SNIPPET WILL ONLY WORK IN THE FRONTEND CODE FILE.)
-=========================================================================*/
-
-/* For example, in a React component, you can use this snippet in your
-  function's RETURN statement */
-// const { data: todos } = await client.models.Todo.list()
-
-// return <ul>{todos.map(todo => <li key={todo.id}>{todo.content}</li>)}</ul>
