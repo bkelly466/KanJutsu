@@ -8,8 +8,9 @@ export default function DeckList({ decks, onCreateDeck, onUpdateDeck, onDeleteDe
   const [editingDeck, setEditingDeck] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
-  const handleCreate = (deckData) => {
-    onCreateDeck(deckData);
+  const handleCreate = async (deckData) => {
+    await onCreateDeck(deckData);
+    // Close either way; any failure is shown via the error banner.
     setShowCreate(false);
   };
 

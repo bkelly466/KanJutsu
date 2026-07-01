@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import { createCard, createWordCard } from '../utils/card';
 
@@ -6,60 +6,58 @@ import { createCard, createWordCard } from '../utils/card';
  * Cloud-backed decks, replacing the old localStorage version.
  *
  * Data lives in the Amplify `Deck` and `Card` models (owner-scoped, so each
- * signed-in user only sees their own). We use `observeQuery()` subscriptions so
- * the local `decks` state stays in sync automatically after every create/update/
- * delete — including changes from another device — without manual refetching.
+ * signed-in user only sees their own). We load with `list()` and re-fetch after
+ * every mutation. That keeps the UI reliably in sync — a newly created deck
+ * shows immediately with no page refresh — and is simpler/more predictable than
+ * relying on live subscriptions.
  *
- * @param {boolean} enabled  Only subscribe/query when the user is signed in.
- *                           When false (logged out) we expose an empty list.
+ * Every mutation catches errors and surfaces a friendly `error` message rather
+ * than failing silently. `a.json()` fields (Deck.category, Card.back) are
+ * JSON-stringified on write and parsed on read, as AWSJSON requires.
+ *
+ * @param {boolean} enabled  Only load/mutate when the user is signed in.
  */
 export function useDecks(enabled) {
-  // One data client for the hook's lifetime. Created here (not at module top)
-  // so it runs after Amplify.configure() in main.jsx.
   const client = useMemo(() => generateClient(), []);
 
   const [rawDecks, setRawDecks] = useState([]);
   const [rawCards, setRawCards] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const clearError = useCallback(() => setError(null), []);
+
+  // Fetch decks + cards fresh. Called on load and after every mutation.
+  const loadData = useCallback(async () => {
+    try {
+      const [decksRes, cardsRes] = await Promise.all([
+        client.models.Deck.list(),
+        client.models.Card.list(),
+      ]);
+      setRawDecks(decksRes.data || []);
+      setRawCards(cardsRes.data || []);
+    } catch (e) {
+      console.error('Failed to load decks:', e);
+      setError(friendlyError(e));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [client]);
 
   useEffect(() => {
     if (!enabled) {
-      // Clear any previous user's data on sign-out. This is an intentional
-      // reset tied to the auth session changing; the synchronous-setState lint
-      // rule is overly strict about this legitimate case.
+      // Reset on sign-out — intentional reset tied to the auth session change.
       /* eslint-disable react-hooks/set-state-in-effect */
       setRawDecks([]);
       setRawCards([]);
-      setIsLoading(true); // so the next sign-in shows a loading state, not "empty"
+      setIsLoading(true);
       /* eslint-enable react-hooks/set-state-in-effect */
       return;
     }
-
-    // observeQuery() emits the current list immediately, then again on every
-    // change. Its callbacks run asynchronously, so setState here is fine.
-    const deckSub = client.models.Deck.observeQuery().subscribe({
-      next: ({ items }) => {
-        setRawDecks(items);
-        setIsLoading(false);
-      },
-      error: (err) => {
-        console.error('Deck sync error:', err);
-        setIsLoading(false);
-      },
-    });
-    const cardSub = client.models.Card.observeQuery().subscribe({
-      next: ({ items }) => setRawCards(items),
-      error: (err) => console.error('Card sync error:', err),
-    });
-
-    return () => {
-      deckSub.unsubscribe();
-      cardSub.unsubscribe();
-    };
-  }, [enabled, client]);
+    loadData();
+  }, [enabled, loadData]);
 
   // Join cards onto their decks and map DB records to the shape the UI expects.
-  // Gated on `enabled` so a logged-out state never shows stale data.
   const decks = useMemo(
     () =>
       enabled
@@ -75,59 +73,94 @@ export function useDecks(enabled) {
     [enabled, rawDecks, rawCards]
   );
 
-  // --- mutations (all async; observeQuery refreshes state for us) -----------
+  // --- mutations: each catches errors, surfaces a message, then refetches ----
 
   const createDeck = async ({ name, description, category }) => {
-    const { data, errors } = await client.models.Deck.create({
-      name,
-      description: description || '',
-      // a.json() (AWSJSON) fields must be sent as a JSON *string*.
-      category: JSON.stringify(category || { type: 'custom', value: '' }),
-    });
-    if (errors) {
-      console.error(errors);
-      throw new Error('Failed to create deck');
+    try {
+      const { data, errors } = await client.models.Deck.create({
+        name,
+        description: description || '',
+        category: JSON.stringify(category || { type: 'custom', value: '' }),
+      });
+      if (errors) throw new Error(errors.map((e) => e.message).join('; '));
+      await loadData();
+      return data.id;
+    } catch (e) {
+      console.error('createDeck failed:', e);
+      setError(friendlyError(e));
+      return null;
     }
-    return data.id;
   };
 
   const updateDeck = async (deckId, updates) => {
-    const payload = { id: deckId, ...updates };
-    // Stringify the category JSON field if this update touches it.
-    if (payload.category != null && typeof payload.category !== 'string') {
-      payload.category = JSON.stringify(payload.category);
+    try {
+      const payload = { id: deckId, ...updates };
+      if (payload.category != null && typeof payload.category !== 'string') {
+        payload.category = JSON.stringify(payload.category);
+      }
+      const { errors } = await client.models.Deck.update(payload);
+      if (errors) throw new Error(errors.map((e) => e.message).join('; '));
+      await loadData();
+    } catch (e) {
+      console.error('updateDeck failed:', e);
+      setError(friendlyError(e));
     }
-    await client.models.Deck.update(payload);
   };
 
   const deleteDeck = async (deckId) => {
-    // No automatic cascade — delete the deck's cards first, then the deck.
-    const cards = rawCards.filter((c) => c.deckId === deckId);
-    await Promise.all(cards.map((c) => client.models.Card.delete({ id: c.id })));
-    await client.models.Deck.delete({ id: deckId });
+    try {
+      // No automatic cascade — delete the deck's cards first, then the deck.
+      const cards = rawCards.filter((c) => c.deckId === deckId);
+      await Promise.all(cards.map((c) => client.models.Card.delete({ id: c.id })));
+      await client.models.Deck.delete({ id: deckId });
+      await loadData();
+    } catch (e) {
+      console.error('deleteDeck failed:', e);
+      setError(friendlyError(e));
+    }
   };
 
   const addCardToDeck = async (deckId, item, type = 'kanji') => {
-    const built = type === 'word' ? createWordCard(item) : createCard(item);
-    // Dedupe within this deck on the stable card key.
-    const exists = rawCards.some(
-      (c) => c.deckId === deckId && c.cardKey === built.key
-    );
-    if (exists) return;
-    await client.models.Card.create(toModelInput(deckId, built));
+    try {
+      const built = type === 'word' ? createWordCard(item) : createCard(item);
+      // Dedupe within this deck on the stable card key.
+      const exists = rawCards.some((c) => c.deckId === deckId && c.cardKey === built.key);
+      if (exists) return;
+      const { errors } = await client.models.Card.create(toModelInput(deckId, built));
+      if (errors) throw new Error(errors.map((e) => e.message).join('; '));
+      await loadData();
+    } catch (e) {
+      console.error('addCardToDeck failed:', e);
+      setError(friendlyError(e));
+    }
   };
 
   const removeCardFromDeck = async (deckId, cardId) => {
-    await client.models.Card.delete({ id: cardId });
+    try {
+      await client.models.Card.delete({ id: cardId });
+      await loadData();
+    } catch (e) {
+      console.error('removeCardFromDeck failed:', e);
+      setError(friendlyError(e));
+    }
   };
 
   const updateCardSRS = async (deckId, cardId, srsMetrics) => {
-    await client.models.Card.update({ id: cardId, ...srsMetrics });
+    try {
+      const { errors } = await client.models.Card.update({ id: cardId, ...srsMetrics });
+      if (errors) throw new Error(errors.map((e) => e.message).join('; '));
+      await loadData();
+    } catch (e) {
+      console.error('updateCardSRS failed:', e);
+      setError(friendlyError(e));
+    }
   };
 
   return {
     decks,
     isLoading,
+    error,
+    clearError,
     createDeck,
     updateDeck,
     deleteDeck,
@@ -137,7 +170,21 @@ export function useDecks(enabled) {
   };
 }
 
-// --- mapping helpers --------------------------------------------------------
+// --- helpers ----------------------------------------------------------------
+
+/** Turn an error into a short, user-facing message. */
+function friendlyError(e) {
+  const msg = String((e && e.message) || e || '').toLowerCase();
+  if (
+    msg.includes('nosigneduser') ||
+    msg.includes('no current user') ||
+    msg.includes('unauthorized') ||
+    msg.includes('not authorized')
+  ) {
+    return 'Your session expired. Please sign out and sign in again.';
+  }
+  return 'Something went wrong syncing with the cloud. Please try again.';
+}
 
 /**
  * Parse an a.json() (AWSJSON) value read back from the API. AppSync returns it

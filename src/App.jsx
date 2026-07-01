@@ -28,6 +28,8 @@ function App() {
   const {
     decks,
     isLoading,
+    error,
+    clearError,
     createDeck,
     updateDeck,
     deleteDeck,
@@ -115,6 +117,12 @@ function App() {
     }
     return (
       <>
+        {error && (
+          <div className="alert alert-warning alert-dismissible d-flex justify-content-between align-items-center" role="alert">
+            <span>{error}</span>
+            <button type="button" className="btn-close" aria-label="Dismiss" onClick={clearError}></button>
+          </div>
+        )}
         <div className="d-flex justify-content-end align-items-center gap-2 mb-3">
           <span className="text-muted small">{user?.signInDetails?.loginId}</span>
           <button className="btn btn-sm btn-outline-secondary" onClick={signOut}>
