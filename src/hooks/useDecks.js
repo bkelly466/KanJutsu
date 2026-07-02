@@ -162,7 +162,7 @@ export function useDecks(enabled) {
     }
   };
 
-  const updateCardSRS = async (deckId, cardId, srsMetrics) => {
+  const updateCardSRS = async (cardId, srsMetrics) => {
     try {
       const { errors } = await client.models.Card.update({ id: cardId, ...srsMetrics });
       if (errors) throw new Error(errors.map((e) => e.message).join('; '));

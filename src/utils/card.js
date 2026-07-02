@@ -27,13 +27,9 @@ export function sourceKey(item, type) {
   return item.kanji;
 }
 
-/**
- * Stable dedupe key for an EXISTING card. Backward-compatible: cards saved
- * before Phase 2 have no `key`/`type`, so we fall back to their `kanji` field.
- */
+/** Stable dedupe key for an EXISTING card. */
 export function getCardKey(card) {
-  if (card.key) return card.key;
-  return card.kanji; // legacy kanji card
+  return card.key;
 }
 
 /**
