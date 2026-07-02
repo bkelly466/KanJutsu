@@ -116,9 +116,14 @@ export function useDecks(enabled) {
       const cardResults = await Promise.all(
         cards.map((c) => client.models.Card.delete({ id: c.id }))
       );
+      const failedCard = cardResults.find((r) => r.errors);
+      if (failedCard) throw new Error(failedCard.errors.map((e) => e.message).join('; '));
+
+      // Only delete the deck once every card is confirmed gone — otherwise a
+      // failed card delete would leave the deck removed but orphaned cards
+      // behind, which then become invisible, un-deletable garbage.
       const deckResult = await client.models.Deck.delete({ id: deckId });
-      const failed = [...cardResults, deckResult].find((r) => r.errors);
-      if (failed) throw new Error(failed.errors.map((e) => e.message).join('; '));
+      if (deckResult.errors) throw new Error(deckResult.errors.map((e) => e.message).join('; '));
       await loadData();
     } catch (e) {
       console.error('deleteDeck failed:', e);
