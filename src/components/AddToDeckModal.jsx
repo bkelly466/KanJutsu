@@ -12,9 +12,11 @@ export default function AddToDeckModal({ decks, item, type = 'kanji', onAdd, onC
   const title = type === 'word' ? item.word : item.kanji;
   const subtitle = (item.meanings || []).slice(0, 3).join(', ');
 
-  const handleAdd = (deckId) => {
-    onAdd(deckId, item, type);
-    setAddedDeckIds(prev => new Set([...prev, deckId]));
+  // Only mark the deck "✓ Added" once the cloud write actually succeeds —
+  // onAdd resolves to false on failure (an error banner shows behind the modal).
+  const handleAdd = async (deckId) => {
+    const ok = await onAdd(deckId, item, type);
+    if (ok) setAddedDeckIds(prev => new Set([...prev, deckId]));
   };
 
   const handleCreate = async (deckData) => {
