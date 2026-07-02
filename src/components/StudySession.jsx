@@ -31,10 +31,13 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
     setSessionStats(prev => ({ ...prev, [ratingKey]: prev[ratingKey] + 1 }));
 
     if (quality === 0) {
-      // Put the card back at the end of queue for re-review this session
+      // Put the card back at the end of the queue for re-review this session.
+      // Carry the freshly computed SRS state (`metrics`) onto the copy so the
+      // second rating builds on this one instead of the stale pre-review state
+      // — otherwise re-rating would silently overwrite this update.
       setQueue(prev => {
         const next = [...prev];
-        next.push({ ...current, repetitions: 0 });
+        next.push({ ...current, ...metrics });
         return next;
       });
     }
@@ -52,6 +55,9 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
     const reviewed = sessionStats.again + sessionStats.hard + sessionStats.good + sessionStats.easy;
     const correct = sessionStats.good + sessionStats.easy;
     const pct = reviewed > 0 ? Math.round((correct / reviewed) * 100) : 0;
+    // "Again" cards get re-queued and rated twice, so the queue length
+    // overstates how many distinct cards were studied. Count unique ids.
+    const uniqueCards = new Set(queue.map((c) => c.id)).size;
 
     return (
       <div className="text-center py-4">
@@ -62,7 +68,7 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
         <div className="row g-3 justify-content-center my-3" style={{ maxWidth: 400, margin: '0 auto' }}>
           <div className="col-6">
             <div className="card text-center p-3 border-0 bg-light">
-              <div className="fw-bold fs-3">{total}</div>
+              <div className="fw-bold fs-3">{uniqueCards}</div>
               <div className="text-muted small">Cards reviewed</div>
             </div>
           </div>

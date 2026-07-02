@@ -61,3 +61,6 @@ Merging the cloud PR triggered an Amplify production deploy (backend + frontend)
   sentences** (need new data sources).
 - Verb forms cover the polite present only; past/negative/て-form could follow
   (extend `conjugate.js` + its tests).
+- **Study-mechanic question for content-strategist:** the "Hard" rating maps to
+  SM-2 quality 2, which is below the passing threshold (3) — so Hard resets the
+  card's streak like a failure. Anki treats Hard as a pass. Decide deliberately.

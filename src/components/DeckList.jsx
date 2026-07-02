@@ -3,7 +3,7 @@ import { getCardsForReview } from '../utils/srs';
 import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR } from '../constants/categories';
 import CreateDeckModal from './CreateDeckModal';
 
-export default function DeckList({ decks, onCreateDeck, onUpdateDeck, onDeleteDeck, onSelectDeck }) {
+export default function DeckList({ decks, onCreateDeck, onUpdateDeck, onDeleteDeck, onSelectDeck, onStudyDeck }) {
   const [showCreate, setShowCreate] = useState(false);
   const [editingDeck, setEditingDeck] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -79,10 +79,16 @@ export default function DeckList({ decks, onCreateDeck, onUpdateDeck, onDeleteDe
                   </div>
 
                   <div className="card-footer bg-transparent border-top-0 d-flex gap-2 pt-0 pb-3 px-3">
+                    {/* "Study (n)" starts a session directly; with nothing due
+                        it opens the deck instead — so the label matches the
+                        action. Empty decks stay openable (clicking the card
+                        body already opened them, so the button shouldn't
+                        disagree). */}
                     <button
                       className="btn btn-dark btn-sm flex-grow-1"
-                      onClick={() => onSelectDeck(deck.id)}
-                      disabled={deck.cards.length === 0}
+                      onClick={() =>
+                        dueCount > 0 ? onStudyDeck(deck.id) : onSelectDeck(deck.id)
+                      }
                     >
                       {dueCount > 0 ? `Study (${dueCount})` : 'View Deck'}
                     </button>

@@ -51,6 +51,13 @@ function App() {
 
   const handleStudy = () => setDecksView('study');
 
+  // Jump straight into a study session from the deck list (the "Study (n)"
+  // button), skipping the detail view.
+  const handleStudyDeck = (deckId) => {
+    setSelectedDeckId(deckId);
+    setDecksView('study');
+  };
+
   const handleBackToList = () => {
     setDecksView('list');
     setSelectedDeckId(null);
@@ -69,8 +76,10 @@ function App() {
     setDeckPickerTarget({ item, type });
   };
 
+  // Resolves to true/false so the Add-to-Deck modal can show "✓ Added" only
+  // when the cloud write succeeded.
   const handleAddToDeck = (deckId, item, type) => {
-    addCardToDeck(deckId, item, type);
+    return addCardToDeck(deckId, item, type);
   };
 
   const renderDecksContent = () => {
@@ -100,6 +109,7 @@ function App() {
         onUpdateDeck={updateDeck}
         onDeleteDeck={deleteDeck}
         onSelectDeck={handleSelectDeck}
+        onStudyDeck={handleStudyDeck}
       />
     );
   };

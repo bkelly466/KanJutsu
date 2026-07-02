@@ -50,10 +50,12 @@ export default function Query({ onOpenDeckPicker }) {
         </form>
       </div>
 
-      {error && <div>{error}</div>}
+      {/* Errors and "no results" share one muted, centered style — matching
+          the loading/empty states used elsewhere in the app. */}
+      {error && <p className="text-muted text-center py-3">{error}</p>}
 
       {isLoading ? (
-        <div><p>Word results loading...</p></div>
+        <p className="text-muted text-center py-3">Word results loading…</p>
       ) : (
         results.length > 0 && (
           <div className="container">

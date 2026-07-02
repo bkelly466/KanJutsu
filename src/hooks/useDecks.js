@@ -110,9 +110,15 @@ export function useDecks(enabled) {
   const deleteDeck = async (deckId) => {
     try {
       // No automatic cascade — delete the deck's cards first, then the deck.
+      // Like create/update, delete() reports failures via `errors` rather than
+      // throwing, so we must check each response or a failure looks like success.
       const cards = rawCards.filter((c) => c.deckId === deckId);
-      await Promise.all(cards.map((c) => client.models.Card.delete({ id: c.id })));
-      await client.models.Deck.delete({ id: deckId });
+      const cardResults = await Promise.all(
+        cards.map((c) => client.models.Card.delete({ id: c.id }))
+      );
+      const deckResult = await client.models.Deck.delete({ id: deckId });
+      const failed = [...cardResults, deckResult].find((r) => r.errors);
+      if (failed) throw new Error(failed.errors.map((e) => e.message).join('; '));
       await loadData();
     } catch (e) {
       console.error('deleteDeck failed:', e);
@@ -120,24 +126,30 @@ export function useDecks(enabled) {
     }
   };
 
+  // Returns true when the card ends up in the deck (created, or already there)
+  // and false when the write failed — so UI like the "✓ Added" state in
+  // AddToDeckModal only shows on success.
   const addCardToDeck = async (deckId, item, type = 'kanji') => {
     try {
       const built = type === 'word' ? createWordCard(item) : createCard(item);
       // Dedupe within this deck on the stable card key.
       const exists = rawCards.some((c) => c.deckId === deckId && c.cardKey === built.key);
-      if (exists) return;
+      if (exists) return true;
       const { errors } = await client.models.Card.create(toModelInput(deckId, built));
       if (errors) throw new Error(errors.map((e) => e.message).join('; '));
       await loadData();
+      return true;
     } catch (e) {
       console.error('addCardToDeck failed:', e);
       setError(friendlyError(e));
+      return false;
     }
   };
 
   const removeCardFromDeck = async (deckId, cardId) => {
     try {
-      await client.models.Card.delete({ id: cardId });
+      const { errors } = await client.models.Card.delete({ id: cardId });
+      if (errors) throw new Error(errors.map((e) => e.message).join('; '));
       await loadData();
     } catch (e) {
       console.error('removeCardFromDeck failed:', e);

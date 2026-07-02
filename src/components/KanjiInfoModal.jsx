@@ -105,7 +105,7 @@ export default function KanjiInfoModal({ initialKanji, onClose, onOpenDeckPicker
               <DetailedInfoCard
                 selectedData={entry}
                 // The card's own close button (X) closes the whole overlay.
-                setExpandedKanji={onClose}
+                onClose={onClose}
                 onOpenDeckPicker={onOpenDeckPicker}
                 // Tapping a kanji inside drills deeper instead of leaving.
                 onKanjiClick={handleDrill}
