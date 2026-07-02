@@ -61,6 +61,7 @@ Merging the cloud PR triggered an Amplify production deploy (backend + frontend)
   sentences** (need new data sources).
 - Verb forms cover the polite present only; past/negative/て-form could follow
   (extend `conjugate.js` + its tests).
-- **Study-mechanic question for content-strategist:** the "Hard" rating maps to
-  SM-2 quality 2, which is below the passing threshold (3) — so Hard resets the
-  card's streak like a failure. Anki treats Hard as a pass. Decide deliberately.
+- ~~Study-mechanic question for content-strategist~~ — resolved: "Hard" now
+  maps to SM-2 quality 3 (a pass) and grows the interval by a fixed 1.2x
+  instead of the full ease-factor multiplier, matching Anki's convention.
+  See `src/utils/srs.js` (`HARD_QUALITY`, `HARD_INTERVAL_MULTIPLIER`).

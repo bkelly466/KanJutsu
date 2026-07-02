@@ -3,7 +3,7 @@ import { calculateNextReview, getCardsForReview } from '../utils/srs';
 
 const RATINGS = [
   { quality: 0, label: 'Again', color: '#dc3545', hint: 'Complete blackout' },
-  { quality: 2, label: 'Hard',  color: '#fd7e14', hint: 'Very difficult' },
+  { quality: 3, label: 'Hard',  color: '#fd7e14', hint: 'Very difficult' },
   { quality: 4, label: 'Good',  color: '#198754', hint: 'Correct with effort' },
   { quality: 5, label: 'Easy',  color: '#0d6efd', hint: 'Perfect recall' },
 ];
@@ -25,7 +25,7 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
 
   const handleRate = (quality) => {
     const metrics = calculateNextReview(current, quality);
-    onUpdateCardSRS(deck.id, current.id, metrics);
+    onUpdateCardSRS(current.id, metrics);
 
     const ratingKey = RATINGS.find(r => r.quality === quality)?.label.toLowerCase();
     setSessionStats(prev => ({ ...prev, [ratingKey]: prev[ratingKey] + 1 }));

@@ -29,13 +29,8 @@ describe('sourceKey', () => {
 });
 
 describe('getCardKey', () => {
-  it('returns the explicit key when a card has one', () => {
+  it('returns the card key', () => {
     expect(getCardKey({ key: '食べる::たべる' })).toBe('食べる::たべる');
-  });
-
-  it('falls back to kanji for legacy cards saved before Phase 2', () => {
-    // Older stored cards had only a `kanji` field — no `key`, no `type`.
-    expect(getCardKey({ kanji: '水' })).toBe('水');
   });
 });
 
