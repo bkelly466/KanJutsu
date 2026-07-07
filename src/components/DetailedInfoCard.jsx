@@ -83,34 +83,25 @@ export default function DetailedInfoCard({ selectedData, onClose, onOpenDeckPick
             </h5>
 
             <div className="ps-2">
-              {selectedData.commonWords.map((wordObj, index) => {
-                const mainJP = wordObj.japanese[0];
-                const definitions = wordObj.senses[0]?.english_definitions.join(', ') || '';
-
-                // The display word (kanji form) may be absent for kana-only
-                // entries. Fall back to the reading (hiragana/katakana).
-                const displayWord = mainJP.word || mainJP.reading;
-
-                return (
-                  // Jisho's `slug` is the entry's stable id. Fall back to the
-                  // index — word/reading composites can collide for kana-only
-                  // entries (word is undefined).
-                  <div key={wordObj.slug || index} className="mb-2">
-                    {/*
-                      * Render the display word with kanji chars as clickable buttons.
-                      * onKanjiClick may be undefined if this component is used outside
-                      * the kanji explorer, but in normal use it is always provided.
-                      */}
-                    <strong className="text-info-emphasis fs-5">
-                      {onKanjiClick
-                        ? renderWithClickableKanji(displayWord, selectedData.kanji, onKanjiClick)
-                        : displayWord}
-                    </strong>
-                    {mainJP.word && <span className="text-muted ms-1">({mainJP.reading})</span>}
-                    <span className="text-muted ms-2">— {definitions}</span>
-                  </div>
-                );
-              })}
+              {/* commonWords arrive already normalised (see src/api/words.js),
+                  so each entry has the same { word, reading, meanings } shape
+                  the word lookup uses. */}
+              {selectedData.commonWords.map((word) => (
+                <div key={word.id} className="mb-2">
+                  {/* Render the word with kanji chars as clickable buttons.
+                      onKanjiClick may be undefined if this component is used
+                      outside the kanji explorer; in normal use it's provided. */}
+                  <strong className="text-info-emphasis fs-5">
+                    {onKanjiClick
+                      ? renderWithClickableKanji(word.word, selectedData.kanji, onKanjiClick)
+                      : word.word}
+                  </strong>
+                  {word.reading && word.reading !== word.word && (
+                    <span className="text-muted ms-1">({word.reading})</span>
+                  )}
+                  <span className="text-muted ms-2">— {word.meanings.join(', ')}</span>
+                </div>
+              ))}
             </div>
           </div>
         )}

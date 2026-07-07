@@ -11,7 +11,7 @@
  * AWS Lambda Function URL proxies it in production.
  */
 
-import { JISHO_PROXY } from './kanji';
+import { JISHO_PROXY } from './jishoProxy';
 
 // Cap how many results we render so a broad query (e.g. "time") doesn't dump a
 // hundred entries onto the screen. Jisho returns the most relevant first.

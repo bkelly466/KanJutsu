@@ -1,20 +1,16 @@
-import { getCardsForReview } from '../utils/srs';
+import { getCardsForReview, daysUntilDue } from '../utils/srs';
 
 export default function DeckDetail({ deck, onBack, onStudy, onRemoveCard }) {
   if (!deck) return null;
 
   const dueCards = getCardsForReview(deck.cards);
 
-  const formatDate = (isoString) => {
-    const d = new Date(isoString);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const reviewDay = new Date(d);
-    reviewDay.setHours(0, 0, 0, 0);
-    const diffDays = Math.round((reviewDay - today) / (1000 * 60 * 60 * 24));
-    if (diffDays <= 0) return 'Due today';
-    if (diffDays === 1) return 'Due tomorrow';
-    return `Due in ${diffDays} days`;
+  // The day math lives in srs.js; this only turns the number into a label.
+  const dueLabel = (card) => {
+    const days = daysUntilDue(card);
+    if (days <= 0) return 'Due today';
+    if (days === 1) return 'Due tomorrow';
+    return `Due in ${days} days`;
   };
 
   return (
@@ -87,7 +83,7 @@ export default function DeckDetail({ deck, onBack, onStudy, onRemoveCard }) {
                     className={`badge ${card.repetitions === 0 ? 'bg-secondary' : 'bg-success'}`}
                     style={{ fontSize: '0.7rem' }}
                   >
-                    {card.repetitions === 0 ? 'New' : formatDate(card.nextReviewDate)}
+                    {card.repetitions === 0 ? 'New' : dueLabel(card)}
                   </span>
                   <button
                     className="btn btn-outline-danger btn-sm"

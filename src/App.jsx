@@ -76,12 +76,6 @@ function App() {
     setDeckPickerTarget({ item, type });
   };
 
-  // Resolves to true/false so the Add-to-Deck modal can show "✓ Added" only
-  // when the cloud write succeeded.
-  const handleAddToDeck = (deckId, item, type) => {
-    return addCardToDeck(deckId, item, type);
-  };
-
   const renderDecksContent = () => {
     if (decksView === 'study' && selectedDeck) {
       return (
@@ -195,7 +189,9 @@ function App() {
             decks={decks}
             item={deckPickerTarget.item}
             type={deckPickerTarget.type}
-            onAdd={handleAddToDeck}
+            // Resolves to true/false so the modal can show "✓ Added" only when
+            // the cloud write succeeded.
+            onAdd={addCardToDeck}
             onCreateDeck={createDeck}
             onClose={() => setDeckPickerTarget(null)}
           />
