@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { calculateNextReview, getCardsForReview, SRS_DEFAULTS } from './srs';
+import { calculateNextReview, getCardsForReview, getDefaultSRSState } from './srs';
 
 // Helper: build a card-like object with just the SRS fields calculateNextReview reads.
 const makeCard = (overrides = {}) => ({
-  ...SRS_DEFAULTS,
+  ...getDefaultSRSState(),
   ...overrides,
 });
 

@@ -12,11 +12,16 @@
  */
 
 /** Starting SRS state for a brand-new card (due immediately). */
-export const SRS_DEFAULTS = {
+const SRS_DEFAULTS = {
   repetitions: 0,
   easeFactor: 2.5,
   interval: 0,
 };
+
+export const getDefaultSRSState = () => ({ 
+  ...SRS_DEFAULTS,
+  nextReviewDate: new Date().toISOString()
+});
 
 const MIN_EASE_FACTOR = 1.3;
 const PASSING_QUALITY = 3;

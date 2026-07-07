@@ -1,4 +1,4 @@
-import { SRS_DEFAULTS } from './srs';
+import { getDefaultSRSState } from './srs';
 import { getVerbForms } from './conjugate';
 
 /**
@@ -52,8 +52,7 @@ export function createCard(kanjiData) {
     },
     jlpt: kanjiData.jlpt,
     grade: kanjiData.grade,
-    ...SRS_DEFAULTS,
-    nextReviewDate: now,
+    ...getDefaultSRSState(),
     addedAt: now,
   };
 }
@@ -83,8 +82,7 @@ export function createWordCard(wordData) {
     },
     // Word JLPT comes as an array (e.g. ["N5"]); keep the first level for display.
     jlpt: wordData.jlpt?.[0] || null,
-    ...SRS_DEFAULTS,
-    nextReviewDate: now,
+    ...getDefaultSRSState(),
     addedAt: now,
   };
 }
