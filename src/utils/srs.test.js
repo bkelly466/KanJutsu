@@ -1,11 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { calculateNextReview, getCardsForReview, getDefaultSRSState } from './srs';
+import { calculateNextReview, getCardsForReview, getDefaultSRSState, daysUntilDue } from './srs';
 
 // Helper: build a card-like object with just the SRS fields calculateNextReview reads.
 const makeCard = (overrides = {}) => ({
   ...getDefaultSRSState(),
   ...overrides,
 });
+
+// Helper: an ISO date n days from now (negative = in the past).
+const daysFromNow = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString();
+};
 
 describe('calculateNextReview', () => {
   describe('q < 3 (lapse)', () => {
@@ -124,13 +131,30 @@ describe('calculateNextReview', () => {
   });
 });
 
-describe('getCardsForReview', () => {
-  const daysFromNow = (n) => {
-    const d = new Date();
-    d.setDate(d.getDate() + n);
-    return d.toISOString();
-  };
+describe('daysUntilDue', () => {
+  it('returns 0 for a card due today', () => {
+    expect(daysUntilDue({ nextReviewDate: daysFromNow(0) })).toBe(0);
+  });
 
+  it('returns a negative number for an overdue card', () => {
+    expect(daysUntilDue({ nextReviewDate: daysFromNow(-3) })).toBe(-3);
+  });
+
+  it('returns a positive number for a card due in the future', () => {
+    expect(daysUntilDue({ nextReviewDate: daysFromNow(5) })).toBe(5);
+  });
+
+  it('compares calendar days, not clock time', () => {
+    // Tomorrow at 00:01 is "1 day away" even if it's 23:59 right now.
+    const tomorrowEarly = new Date();
+    tomorrowEarly.setDate(tomorrowEarly.getDate() + 1);
+    tomorrowEarly.setHours(0, 1, 0, 0);
+
+    expect(daysUntilDue({ nextReviewDate: tomorrowEarly.toISOString() })).toBe(1);
+  });
+});
+
+describe('getCardsForReview', () => {
   it('includes cards due today', () => {
     const cards = [{ id: 'a', nextReviewDate: daysFromNow(0) }];
     expect(getCardsForReview(cards)).toHaveLength(1);

@@ -82,14 +82,21 @@ export const calculateNextReview = (card, quality) => {
   };
 };
 
-/** Return the cards that are due for review today (or overdue). */
-export const getCardsForReview = (cards) => {
+/**
+ * Whole calendar days from today until a card is due. Both dates are
+ * normalized to midnight so the answer never depends on the time of day:
+ * 0 = due today, negative = overdue, 1 = due tomorrow, etc.
+ */
+export const daysUntilDue = (card) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  return cards.filter((card) => {
-    const reviewDate = new Date(card.nextReviewDate);
-    reviewDate.setHours(0, 0, 0, 0);
-    return reviewDate <= today;
-  });
+  const due = new Date(card.nextReviewDate);
+  due.setHours(0, 0, 0, 0);
+
+  return Math.round((due - today) / (1000 * 60 * 60 * 24));
 };
+
+/** Return the cards that are due for review today (or overdue). */
+export const getCardsForReview = (cards) =>
+  cards.filter((card) => daysUntilDue(card) <= 0);
