@@ -77,14 +77,14 @@ export function useDecks(enabled) {
 
   const createDeck = async ({ name, description, category }) => {
     try {
-      const { data, errors } = await client.models.Deck.create({
+      const res = await client.models.Deck.create({
         name,
         description: description || '',
         category: JSON.stringify(category || { type: 'custom', value: '' }),
       });
-      if (errors) throw new Error(errors.map((e) => e.message).join('; '));
+      throwIfErrors(res);
       await loadData();
-      return data.id;
+      return res.data.id;
     } catch (e) {
       console.error('createDeck failed:', e);
       setError(friendlyError(e));
@@ -98,8 +98,7 @@ export function useDecks(enabled) {
       if (payload.category != null && typeof payload.category !== 'string') {
         payload.category = JSON.stringify(payload.category);
       }
-      const { errors } = await client.models.Deck.update(payload);
-      if (errors) throw new Error(errors.map((e) => e.message).join('; '));
+      throwIfErrors(await client.models.Deck.update(payload));
       await loadData();
     } catch (e) {
       console.error('updateDeck failed:', e);
@@ -116,14 +115,12 @@ export function useDecks(enabled) {
       const cardResults = await Promise.all(
         cards.map((c) => client.models.Card.delete({ id: c.id }))
       );
-      const failedCard = cardResults.find((r) => r.errors);
-      if (failedCard) throw new Error(failedCard.errors.map((e) => e.message).join('; '));
+      cardResults.forEach(throwIfErrors);
 
       // Only delete the deck once every card is confirmed gone — otherwise a
       // failed card delete would leave the deck removed but orphaned cards
       // behind, which then become invisible, un-deletable garbage.
-      const deckResult = await client.models.Deck.delete({ id: deckId });
-      if (deckResult.errors) throw new Error(deckResult.errors.map((e) => e.message).join('; '));
+      throwIfErrors(await client.models.Deck.delete({ id: deckId }));
       await loadData();
     } catch (e) {
       console.error('deleteDeck failed:', e);
@@ -140,8 +137,7 @@ export function useDecks(enabled) {
       // Dedupe within this deck on the stable card key.
       const exists = rawCards.some((c) => c.deckId === deckId && c.cardKey === built.key);
       if (exists) return true;
-      const { errors } = await client.models.Card.create(toModelInput(deckId, built));
-      if (errors) throw new Error(errors.map((e) => e.message).join('; '));
+      throwIfErrors(await client.models.Card.create(toModelInput(deckId, built)));
       await loadData();
       return true;
     } catch (e) {
@@ -153,8 +149,7 @@ export function useDecks(enabled) {
 
   const removeCardFromDeck = async (deckId, cardId) => {
     try {
-      const { errors } = await client.models.Card.delete({ id: cardId });
-      if (errors) throw new Error(errors.map((e) => e.message).join('; '));
+      throwIfErrors(await client.models.Card.delete({ id: cardId }));
       await loadData();
     } catch (e) {
       console.error('removeCardFromDeck failed:', e);
@@ -164,8 +159,7 @@ export function useDecks(enabled) {
 
   const updateCardSRS = async (cardId, srsMetrics) => {
     try {
-      const { errors } = await client.models.Card.update({ id: cardId, ...srsMetrics });
-      if (errors) throw new Error(errors.map((e) => e.message).join('; '));
+      throwIfErrors(await client.models.Card.update({ id: cardId, ...srsMetrics }));
       await loadData();
     } catch (e) {
       console.error('updateCardSRS failed:', e);
@@ -188,6 +182,15 @@ export function useDecks(enabled) {
 }
 
 // --- helpers ----------------------------------------------------------------
+
+/**
+ * The Amplify data client reports failures via an `errors` array on the
+ * response instead of throwing. Collapse that into a thrown Error so every
+ * mutation can use one try/catch instead of checking `errors` by hand.
+ */
+function throwIfErrors({ errors } = {}) {
+  if (errors) throw new Error(errors.map((e) => e.message).join('; '));
+}
 
 /** Turn an error into a short, user-facing message. */
 function friendlyError(e) {
