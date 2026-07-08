@@ -33,16 +33,11 @@ export function getCardKey(card) {
 }
 
 /**
- * Build a flashcard from enriched kanji API data.
+ * The kanji-specific card fields, from enriched kanji API data.
  * `front` is the kanji; `back` holds the readings/meanings shown after a flip.
  */
-export function createCard(kanjiData) {
-  const now = new Date().toISOString();
-
+function kanjiFields(kanjiData) {
   return {
-    id: crypto.randomUUID(),
-    type: 'kanji',
-    key: sourceKey(kanjiData, 'kanji'),
     kanji: kanjiData.kanji,
     front: kanjiData.kanji,
     back: {
@@ -52,23 +47,16 @@ export function createCard(kanjiData) {
     },
     jlpt: kanjiData.jlpt,
     grade: kanjiData.grade,
-    ...getDefaultSRSState(),
-    addedAt: now,
   };
 }
 
 /**
- * Build a flashcard from normalised word data (see src/api/words.js).
- * Recognition direction: `front` is the Japanese word, `back` reveals the
- * reading and meanings — matching how kanji cards work.
+ * The word-specific card fields, from normalised word data (see
+ * src/api/words.js). Recognition direction: `front` is the Japanese word,
+ * `back` reveals the reading and meanings — matching how kanji cards work.
  */
-export function createWordCard(wordData) {
-  const now = new Date().toISOString();
-
+function wordFields(wordData) {
   return {
-    id: crypto.randomUUID(),
-    type: 'word',
-    key: sourceKey(wordData, 'word'),
     word: wordData.word,
     reading: wordData.reading,
     front: wordData.word,
@@ -82,7 +70,24 @@ export function createWordCard(wordData) {
     },
     // Word JLPT comes as an array (e.g. ["N5"]); keep the first level for display.
     jlpt: wordData.jlpt?.[0] || null,
+  };
+}
+
+/**
+ * Build a flashcard of either type. The shared shape (id, type, key, SRS
+ * state, addedAt) lives here; the type-specific fields come from
+ * kanjiFields/wordFields above.
+ *
+ * @param {object} item - kanji data or normalised word data
+ * @param {'kanji'|'word'} type - defaults to 'kanji', matching sourceKey's fallback
+ */
+export function createCard(item, type = 'kanji') {
+  return {
+    id: crypto.randomUUID(),
+    type,
+    key: sourceKey(item, type),
+    ...(type === 'word' ? wordFields(item) : kanjiFields(item)),
     ...getDefaultSRSState(),
-    addedAt: now,
+    addedAt: new Date().toISOString(),
   };
 }

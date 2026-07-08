@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sourceKey, getCardKey, createCard, createWordCard } from './card';
+import { sourceKey, getCardKey, createCard } from './card';
 
 const sampleKanji = {
   kanji: '水',
@@ -35,7 +35,7 @@ describe('getCardKey', () => {
 });
 
 describe('createCard (kanji)', () => {
-  const card = createCard(sampleKanji);
+  const card = createCard(sampleKanji, 'kanji');
 
   it('sets type and a stable key', () => {
     expect(card.type).toBe('kanji');
@@ -58,8 +58,8 @@ describe('createCard (kanji)', () => {
   });
 });
 
-describe('createWordCard (word)', () => {
-  const card = createWordCard(sampleWord);
+describe('createCard (word)', () => {
+  const card = createCard(sampleWord, 'word');
 
   it('sets type and a word::reading key', () => {
     expect(card.type).toBe('word');
@@ -80,5 +80,14 @@ describe('createWordCard (word)', () => {
     expect(card.repetitions).toBe(0);
     expect(card.easeFactor).toBe(2.5);
     expect(card.id).toBeTruthy();
+  });
+});
+
+describe('createCard (default type)', () => {
+  it('builds a kanji card when no type is given, matching sourceKey', () => {
+    const card = createCard(sampleKanji);
+    expect(card.type).toBe('kanji');
+    expect(card.key).toBe('水');
+    expect(card.back.onyomi).toBe('スイ');
   });
 });
