@@ -32,3 +32,7 @@ amplifyconfiguration*
 # Kept local (they stay on disk), not committed to the repo.
 .claude/
 CLAUDE.md
+
+# HANDOFF.md is a local resume-note file, edited directly on main (see CLAUDE.md).
+# Kept out of the repo so updating it doesn't trigger a build/deploy.
+HANDOFF.md
