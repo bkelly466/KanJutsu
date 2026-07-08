@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { generateClient } from 'aws-amplify/data';
-import { createCard, createWordCard } from '../utils/card';
+import { createCard } from '../utils/card';
 
 /**
  * Cloud-backed decks, replacing the old localStorage version.
@@ -133,7 +133,7 @@ export function useDecks(enabled) {
   // AddToDeckModal only shows on success.
   const addCardToDeck = async (deckId, item, type = 'kanji') => {
     try {
-      const built = type === 'word' ? createWordCard(item) : createCard(item);
+      const built = createCard(item, type);
       // Dedupe within this deck on the stable card key.
       const exists = rawCards.some((c) => c.deckId === deckId && c.cardKey === built.key);
       if (exists) return true;
@@ -222,7 +222,7 @@ function parseJson(value) {
   return value;
 }
 
-/** Map a built card (from createCard/createWordCard) to a Card model record. */
+/** Map a built card (from createCard) to a Card model record. */
 function toModelInput(deckId, card) {
   return {
     deckId,
