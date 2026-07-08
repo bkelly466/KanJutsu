@@ -2,30 +2,41 @@
 
 _Resume point between conversations. Update this when you finish a work session._
 
-_Last updated: 2026-07-02_
+_Last updated: 2026-07-07_
 
-## Current state — cloud flashcards LIVE on `main`
-Everything is merged to `main` and pushed. `main` now includes:
+## Current state — polish pass merged, main is clean
+Everything is merged to `main` and pushed; local merged branches are cleaned up.
+On top of the cloud-flashcards cutover (see below), `main` now also includes:
+- **PR #5** — deck delete no longer removes the deck if any card delete in the
+  batch fails (prevents orphaned, invisible cards).
+- **PR #6** — "Hard" rating maps to SM-2 quality 3 (a pass): keeps the streak
+  and grows the interval by a fixed 1.2x, matching Anki's convention.
+- **PR #7** — deep-module refactor pass (Ousterhout review), 5 commits:
+  `getDefaultSRSState()` + `daysUntilDue()` centralise SRS state/date math in
+  `srs.js`; `throwIfErrors()` in `useDecks` owns the Amplify error shape;
+  `commonWords` are normalised at the API boundary (`normalizeWord`), with
+  `JISHO_PROXY` moved to `src/api/jishoProxy.js`; a pass-through handler
+  dropped from `App.jsx`. No user-facing changes intended (one nicety:
+  kana-only common words in the kanji overlay now show readings per the
+  app-wide rule). Tests grew to 55.
+
+Established base (from the cloud cutover):
 - **Word-first dictionary** with the Pleco-style kanji explorer overlay
   (`KanjiInfoModal`): readings, meanings, stroke count, JLPT, common words,
   drill-down kanji→kanji.
 - **Verb forms**: verbs show dictionary + polite (ます) forms on the detail card
   and flashcard back (`conjugate.js`, unit-tested).
-- **Cloud flashcards** (the big cutover): decks/cards persist in AWS (Amplify
-  `Deck`/`Card` models, owner-scoped). The Decks tab **requires login**; the
-  dictionary stays public. `useDecks` uses the Amplify data client (list +
-  refetch after each mutation) with error surfacing.
+- **Cloud flashcards**: decks/cards persist in AWS (Amplify `Deck`/`Card`
+  models, owner-scoped). The Decks tab **requires login**; the dictionary stays
+  public. `useDecks` uses the Amplify data client (list + refetch after each
+  mutation) with error surfacing.
 - CI (lint/test/build), and `.claude/` + `CLAUDE.md` are gitignored.
 
-Merging the cloud PR triggered an Amplify production deploy (backend + frontend).
-
 ## Verify next session (if not already confirmed)
-- Amplify console shows the production build **succeeded**.
-- Live site smoke test: dictionary works logged out; sign up fresh (production
-  has its own Cognito user pool, separate from the local sandbox); create a deck,
-  add a kanji + a word card, study/rate, reload → persists; sign out.
-- Note for real users: the live Decks tab now requires login, and previous
-  localStorage decks do NOT carry over (intentional — no migration).
+- Merging PR #7 (2026-07-07) triggered an Amplify production deploy — check the
+  console shows it **succeeded**, then quick smoke test: search a word, open the
+  kanji overlay, confirm Common Words render with readings + clickable kanji;
+  study a deck and rate a card "Hard" → interval grows, streak kept.
 
 ## How to develop the backend (AWS)
 - Local AWS profile is SSO, profile name `default`, region **us-east-2**.
