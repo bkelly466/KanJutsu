@@ -1,6 +1,11 @@
 import { getCardsForReview, daysUntilDue } from '../utils/srs';
+import { useBackButton } from '../hooks/useBackButton';
 
 export default function DeckDetail({ deck, onBack, onStudy, onRemoveCard }) {
+  // Device Back returns to the deck list instead of leaving the app.
+  // Called before the early return below so the hook order stays stable.
+  useBackButton(!!deck, onBack);
+
   if (!deck) return null;
 
   const dueCards = getCardsForReview(deck.cards);
