@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchKanjiEntry } from '../api/kanji';
 import DetailedInfoCard from './DetailedInfoCard';
+import Modal from './Modal';
 
 /**
  * Pleco-style kanji explorer.
@@ -72,48 +73,37 @@ export default function KanjiInfoModal({ initialKanji, onClose, onOpenDeckPicker
   };
 
   return (
-    <div
-      className="modal d-block"
-      style={{ background: 'rgba(0,0,0,0.5)' }}
-      onClick={onClose}
-    >
-      <div
-        className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="modal-content">
-          {/* Back appears only once we've drilled at least one level deep.
-              The card below renders its own close (X) wired to onClose. */}
-          {stack.length > 1 && (
-            <div className="modal-header border-0 pb-0">
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-secondary"
-                onClick={handleBack}
-              >
-                ← Back
-              </button>
-            </div>
-          )}
-
-          <div className="modal-body pt-0">
-            {isLoading ? (
-              <p className="text-muted text-center py-4">Loading {current}…</p>
-            ) : error ? (
-              <p className="text-danger text-center py-4">{error}</p>
-            ) : (
-              <DetailedInfoCard
-                selectedData={entry}
-                // The card's own close button (X) closes the whole overlay.
-                onClose={onClose}
-                onOpenDeckPicker={onOpenDeckPicker}
-                // Tapping a kanji inside drills deeper instead of leaving.
-                onKanjiClick={handleDrill}
-              />
-            )}
-          </div>
+    <Modal onClose={onClose} size="lg" scrollable>
+      {/* Back appears only once we've drilled at least one level deep.
+          The card below renders its own close (X) wired to onClose. */}
+      {stack.length > 1 && (
+        <div className="modal-header border-0 pb-0">
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary touch-target"
+            onClick={handleBack}
+          >
+            ← Back
+          </button>
         </div>
+      )}
+
+      <div className="modal-body pt-0">
+        {isLoading ? (
+          <p className="text-muted text-center py-4">Loading {current}…</p>
+        ) : error ? (
+          <p className="text-danger text-center py-4">{error}</p>
+        ) : (
+          <DetailedInfoCard
+            selectedData={entry}
+            // The card's own close button (X) closes the whole overlay.
+            onClose={onClose}
+            onOpenDeckPicker={onOpenDeckPicker}
+            // Tapping a kanji inside drills deeper instead of leaving.
+            onKanjiClick={handleDrill}
+          />
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }
