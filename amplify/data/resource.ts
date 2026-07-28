@@ -52,6 +52,9 @@ const schema = a.schema({
       easeFactor: a.float().default(2.5),
       interval: a.integer().default(0),
       nextReviewDate: a.string(),
+      // When this card was last rated in a study session. Null until the first
+      // review — cards created before this field existed also read as null.
+      lastReviewedDate: a.string(),
       addedAt: a.string(),
     })
     .authorization((allow) => [allow.owner()]),

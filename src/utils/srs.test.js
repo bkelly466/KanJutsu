@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { calculateNextReview, getCardsForReview, getDefaultSRSState, daysUntilDue } from './srs';
+import {
+  calculateNextReview,
+  getCardsForReview,
+  getDefaultSRSState,
+  daysUntilDue,
+  dueLabel,
+} from './srs';
 
 // Helper: build a card-like object with just the SRS fields calculateNextReview reads.
 const makeCard = (overrides = {}) => ({
@@ -193,5 +199,41 @@ describe('getCardsForReview', () => {
     const cards = [{ id: 'a', nextReviewDate: today.toISOString() }];
 
     expect(getCardsForReview(cards)).toHaveLength(1);
+  });
+});
+
+describe('lastReviewedDate', () => {
+  it('is null on a fresh card, meaning "never reviewed"', () => {
+    expect(getDefaultSRSState().lastReviewedDate).toBeNull();
+  });
+
+  it('is stamped with today whenever a card is rated', () => {
+    const result = calculateNextReview(makeCard(), 4);
+    expect(new Date(result.lastReviewedDate).toDateString()).toBe(
+      new Date().toDateString()
+    );
+  });
+
+  it('is stamped even on a lapse, since a failed review is still a review', () => {
+    const result = calculateNextReview(makeCard({ repetitions: 5 }), 0);
+    expect(result.lastReviewedDate).toBeTruthy();
+  });
+});
+
+describe('dueLabel', () => {
+  it('says "Due today" for a card due now', () => {
+    expect(dueLabel({ nextReviewDate: daysFromNow(0) })).toBe('Due today');
+  });
+
+  it('says "Due today" for an overdue card rather than a negative count', () => {
+    expect(dueLabel({ nextReviewDate: daysFromNow(-3) })).toBe('Due today');
+  });
+
+  it('says "Due tomorrow" rather than "Due in 1 days"', () => {
+    expect(dueLabel({ nextReviewDate: daysFromNow(1) })).toBe('Due tomorrow');
+  });
+
+  it('counts days beyond tomorrow', () => {
+    expect(dueLabel({ nextReviewDate: daysFromNow(5) })).toBe('Due in 5 days');
   });
 });
