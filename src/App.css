@@ -59,8 +59,15 @@
   /* Reset browser button defaults so it blends into surrounding text */
   background: none;
   border: none;
-  padding: 0 1px;
+  /* 3px (was 1px) widens the tap target a little. Padding is used rather than
+     the ::after trick below for the horizontal axis because padding pushes
+     neighbouring characters apart — two side-by-side kanji (e.g. 勉強) would
+     otherwise end up with overlapping, ambiguous hit areas. */
+  padding: 0 3px;
   margin: 0;
+
+  /* Anchor for the ::after tap-target expander below. */
+  position: relative;
 
   /* Visual affordance: matches Bootstrap's info-emphasis colour        */
   /* (the same colour used for the word text next to it)               */
@@ -80,9 +87,33 @@
   transition: color 0.15s ease-in-out;
 }
 
+/* Enlarges the touch target vertically without changing how the character
+   looks or how the surrounding text flows.
+
+   The pseudo-element is invisible (no background) and absolutely positioned,
+   so it's taken out of the normal flow and cannot affect line height. `inset`
+   is shorthand for top/right/bottom/left; the negative values push the box
+   12px beyond the character above and below. A finger tapping slightly high
+   or low still lands on the button.
+
+   Only the vertical axis is expanded here — see the padding note above for
+   why the horizontal axis is handled differently. */
+.kanji-link::after {
+  content: '';
+  position: absolute;
+  inset: -12px 0;
+}
+
 .kanji-link:hover,
 .kanji-link:focus-visible {
   /* Shift to Bootstrap danger (red) on hover — prominent but familiar */
+  color: #dc3545;
+  text-decoration-style: solid;
+}
+
+/* Touch devices never fire :hover, so without this a tap gives no feedback at
+   all until the overlay opens. :active fires on press on both touch and mouse. */
+.kanji-link:active {
   color: #dc3545;
   text-decoration-style: solid;
 }
@@ -94,6 +125,26 @@
 .kanji-link:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Touch target minimum                                                 */
+/* ------------------------------------------------------------------ */
+
+/* Apple's HIG and Android's Material guidelines both put the minimum
+   comfortable touch target at ~44px. Bootstrap's `btn-sm` is roughly 31px
+   tall, and icon-only buttons (✎ / ✕) are barely wider than the glyph — so
+   they need an explicit floor.
+
+   Applied alongside `btn-sm`, this keeps the small visual weight of the button
+   while guaranteeing the finger has somewhere to land. */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  /* The button's own content stays centred inside the enlarged box. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Clean accent divider */

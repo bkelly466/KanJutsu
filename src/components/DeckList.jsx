@@ -92,16 +92,21 @@ export default function DeckList({ decks, onCreateDeck, onUpdateDeck, onDeleteDe
                     >
                       {dueCount > 0 ? `Study (${dueCount})` : 'View Deck'}
                     </button>
+                    {/* Icon-only buttons: `touch-target` gives them a 44px
+                        minimum, and aria-label carries the accessible name
+                        since the `title` tooltip never shows on touch. */}
                     <button
-                      className="btn btn-outline-secondary btn-sm"
+                      className="btn btn-outline-secondary btn-sm touch-target"
                       onClick={e => { e.stopPropagation(); setEditingDeck(deck); }}
+                      aria-label={`Edit ${deck.name}`}
                       title="Edit deck"
                     >
                       ✎
                     </button>
                     <button
-                      className="btn btn-outline-danger btn-sm"
+                      className="btn btn-outline-danger btn-sm touch-target"
                       onClick={e => { e.stopPropagation(); setConfirmDelete(deck); }}
+                      aria-label={`Delete ${deck.name}`}
                       title="Delete deck"
                     >
                       ✕

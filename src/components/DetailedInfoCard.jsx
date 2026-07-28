@@ -28,8 +28,17 @@ export default function DetailedInfoCard({ selectedData, onClose, onOpenDeckPick
       </div>
 
       <div className="card-body p-4 pt-0">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h2 className="display-1 fw-bold text-dark mb-3">{selectedData.kanji}</h2>
+        {/* flex-wrap so the (very large) kanji and the Add to Deck button
+            stack rather than collide on a narrow screen. */}
+        <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+          {/* clamp() replaces Bootstrap's fixed `display-1` (~6rem), which is
+              nearly half the width of a 375px phone. */}
+          <h2
+            className="fw-bold text-dark mb-3"
+            style={{ fontSize: 'clamp(3.5rem, 16vw, 6rem)', lineHeight: 1.1 }}
+          >
+            {selectedData.kanji}
+          </h2>
 
           <button
             className="btn btn-dark"

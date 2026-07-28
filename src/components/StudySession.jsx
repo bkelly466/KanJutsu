@@ -142,7 +142,18 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
       >
         <div className="card-body d-flex flex-column justify-content-center align-items-center p-4">
           {/* Front */}
-          <div style={{ fontSize: isWord ? '3rem' : '5rem', fontWeight: 'bold', lineHeight: 1, marginBottom: '0.5rem' }}>
+          {/* Words can be several characters long, so their size scales with
+              the viewport; a single kanji is always one glyph and can stay
+              large. `wordBreak` stops a long compound overflowing the card. */}
+          <div
+            style={{
+              fontSize: isWord ? 'clamp(2rem, 9vw, 3rem)' : 'clamp(3.5rem, 16vw, 5rem)',
+              fontWeight: 'bold',
+              lineHeight: 1.1,
+              marginBottom: '0.5rem',
+              wordBreak: 'break-word',
+            }}
+          >
             {current.front}
           </div>
 
@@ -216,11 +227,23 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
                 color: '#fff',
                 border: 'none',
                 padding: '10px 4px',
+                // The four most-tapped buttons in the app. 48px clears the
+                // 44px touch-target minimum with room to spare.
+                minHeight: 48,
               }}
-              title={r.hint}
+              // No `title` tooltip: it only appears on hover, which touch
+              // devices never fire. The hint is rendered below instead.
               onClick={() => handleRate(r.quality)}
             >
               <div>{r.label}</div>
+              {/* Always-visible hint, replacing the hover-only tooltip.
+                  Kept very small so the button stays compact at 4-across. */}
+              <div
+                className="fw-normal lh-sm"
+                style={{ fontSize: '0.65rem', opacity: 0.85 }}
+              >
+                {r.hint}
+              </div>
             </button>
           ))}
         </div>

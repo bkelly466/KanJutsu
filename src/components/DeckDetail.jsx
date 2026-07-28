@@ -15,18 +15,21 @@ export default function DeckDetail({ deck, onBack, onStudy, onRemoveCard }) {
 
   return (
     <div>
-      <div className="d-flex align-items-center gap-3 mb-4">
-        <button className="btn btn-outline-secondary btn-sm" onClick={onBack}>
+      {/* flex-wrap lets the Study button drop onto its own line rather than
+          crushing a long deck name on a phone. The title has a min-width so it
+          is the element that forces the wrap. */}
+      <div className="d-flex flex-wrap align-items-center gap-2 gap-md-3 mb-4">
+        <button className="btn btn-outline-secondary btn-sm touch-target" onClick={onBack}>
           ← Back
         </button>
-        <div className="flex-grow-1">
+        <div className="flex-grow-1" style={{ minWidth: '10rem' }}>
           <h4 className="fw-bold mb-0">{deck.name}</h4>
           {deck.description && (
             <p className="text-muted small mb-0">{deck.description}</p>
           )}
         </div>
         <button
-          className="btn btn-dark"
+          className="btn btn-dark flex-grow-1 flex-sm-grow-0"
           onClick={onStudy}
           disabled={dueCards.length === 0}
         >
@@ -54,9 +57,9 @@ export default function DeckDetail({ deck, onBack, onStudy, onRemoveCard }) {
             {deck.cards.map(card => (
               <div
                 key={card.id}
-                className="list-group-item d-flex justify-content-between align-items-center"
+                className="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2"
               >
-                <div className="d-flex align-items-center gap-3">
+                <div className="d-flex align-items-center gap-3 flex-grow-1" style={{ minWidth: '12rem' }}>
                   <span style={{ fontSize: '1.8rem', fontWeight: 'bold', lineHeight: 1 }}>
                     {card.front ?? card.kanji}
                   </span>
@@ -86,9 +89,11 @@ export default function DeckDetail({ deck, onBack, onStudy, onRemoveCard }) {
                     {card.repetitions === 0 ? 'New' : dueLabel(card)}
                   </span>
                   <button
-                    className="btn btn-outline-danger btn-sm"
-                    style={{ padding: '2px 7px', fontSize: '0.75rem' }}
+                    className="btn btn-outline-danger btn-sm touch-target"
                     onClick={() => onRemoveCard(deck.id, card.id)}
+                    /* title is a hover tooltip and is invisible on touch, so
+                       the accessible name comes from aria-label instead. */
+                    aria-label={`Remove ${card.front ?? card.kanji}`}
                     title="Remove card"
                   >
                     ✕
