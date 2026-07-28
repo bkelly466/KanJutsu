@@ -1,21 +1,49 @@
-import { getCardsForReview, daysUntilDue } from '../utils/srs';
+import { useState } from 'react';
+import { getCardsForReview } from '../utils/srs';
 import { useBackButton } from '../hooks/useBackButton';
+import CardDetailModal from './CardDetailModal';
 
-export default function DeckDetail({ deck, onBack, onStudy, onRemoveCard }) {
+export default function DeckDetail({
+  deck,
+  decks,
+  onBack,
+  onStudy,
+  onRemoveCard,
+  onUpdateCard,
+  onUpdateCardSRS,
+  onCopyCardToDeck,
+}) {
+  // Track the card by ID, not the object: useDecks refetches after every
+  // mutation and rebuilds `decks`, so a held card object would go stale the
+  // moment the user edited or reset it.
+  const [selectedCardId, setSelectedCardId] = useState(null);
+
   // Device Back returns to the deck list instead of leaving the app.
-  // Called before the early return below so the hook order stays stable.
+  // Both hooks are called before the early return below so the hook order
+  // stays stable across renders.
   useBackButton(!!deck, onBack);
 
   if (!deck) return null;
 
   const dueCards = getCardsForReview(deck.cards);
+  const selectedCard = deck.cards.find((c) => c.id === selectedCardId);
 
-  // The day math lives in srs.js; this only turns the number into a label.
-  const dueLabel = (card) => {
-    const days = daysUntilDue(card);
-    if (days <= 0) return 'Due today';
-    if (days === 1) return 'Due tomorrow';
-    return `Due in ${days} days`;
+  /**
+   * The reading shown in parentheses beside the headword. Word cards have one
+   * reading; kanji cards have on'yomi and kun'yomi, which we join — they stay
+   * tellable apart because on'yomi is katakana and kun'yomi hiragana.
+   *
+   * Returns null when there's nothing worth showing, so the caller can omit
+   * the parentheses entirely rather than render an empty "()".
+   */
+  const readingFor = (card) => {
+    if (card.type === 'word') {
+      // Kana-only words (e.g. ある) have a reading identical to the headword;
+      // repeating it adds nothing.
+      const reading = card.back.reading;
+      return reading && reading !== card.front ? reading : null;
+    }
+    return [card.back.onyomi, card.back.kunyomi].filter(Boolean).join('、') || null;
   };
 
   return (
@@ -59,55 +87,74 @@ export default function DeckDetail({ deck, onBack, onStudy, onRemoveCard }) {
           </div>
 
           <div className="list-group">
-            {deck.cards.map(card => (
-              <div
-                key={card.id}
-                className="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2"
-              >
-                <div className="d-flex align-items-center gap-3 flex-grow-1" style={{ minWidth: '12rem' }}>
-                  <span style={{ fontSize: '1.8rem', fontWeight: 'bold', lineHeight: 1 }}>
-                    {card.front ?? card.kanji}
-                  </span>
-                  <div>
-                    <div className="text-muted small">
-                      {card.back.meanings}
-                    </div>
-                    <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                      {/* Word cards show a reading; kanji cards show on/kun'yomi.
-                          card.type is absent on legacy cards → treated as kanji. */}
-                      {card.type === 'word' ? (
-                        card.back.reading && <span>読み: {card.back.reading}</span>
-                      ) : (
-                        <>
-                          {card.back.onyomi && <span>音: {card.back.onyomi} </span>}
-                          {card.back.kunyomi && <span>訓: {card.back.kunyomi}</span>}
-                        </>
+            {deck.cards.map(card => {
+              const reading = readingFor(card);
+              return (
+                // The whole row opens the card's detail modal.
+                // `list-group-item-action` gives the press feedback that touch
+                // needs (the same pattern the dictionary results use).
+                <button
+                  key={card.id}
+                  type="button"
+                  className="list-group-item list-group-item-action d-flex align-items-center text-start"
+                  onClick={() => setSelectedCardId(card.id)}
+                  aria-label={`Details for ${card.front ?? card.kanji}`}
+                >
+                  {/* minWidth: 0 lets this block shrink below its content width.
+                      Flex items default to min-width:auto, which would otherwise
+                      push the chevron off the right edge. */}
+                  <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                    <div className="d-flex flex-wrap align-items-baseline gap-2">
+                      {/* keep-all forbids a break inside a run of CJK characters,
+                          so a word never stacks one character per line. */}
+                      <span
+                        style={{
+                          fontSize: '1.8rem',
+                          fontWeight: 'bold',
+                          lineHeight: 1.2,
+                          wordBreak: 'keep-all',
+                        }}
+                      >
+                        {card.front ?? card.kanji}
+                      </span>
+                      {reading && (
+                        <span className="text-muted" style={{ wordBreak: 'keep-all' }}>
+                          ({reading})
+                        </span>
                       )}
                     </div>
+                    <div className="text-muted small">{card.back.meanings}</div>
                   </div>
-                </div>
-                <div className="d-flex align-items-center gap-2">
+
+                  {/* Decorative — the row's aria-label already names the card. */}
                   <span
-                    className={`badge ${card.repetitions === 0 ? 'bg-secondary' : 'bg-success'}`}
-                    style={{ fontSize: '0.7rem' }}
+                    className="text-muted ms-3"
+                    style={{ fontSize: '2rem', lineHeight: 1, flexShrink: 0 }}
+                    aria-hidden="true"
                   >
-                    {card.repetitions === 0 ? 'New' : dueLabel(card)}
+                    ›
                   </span>
-                  <button
-                    className="btn btn-outline-danger btn-sm touch-target"
-                    onClick={() => onRemoveCard(deck.id, card.id)}
-                    /* title is a hover tooltip and is invisible on touch, so
-                       the accessible name comes from aria-label instead. */
-                    aria-label={`Remove ${card.front ?? card.kanji}`}
-                    title="Remove card"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </>
+      )}
+
+      {/* selectedCard is looked up from `deck.cards` on every render, so it
+          always reflects the latest data after a mutation + refetch. It goes
+          undefined if the card is removed, which closes the modal. */}
+      {selectedCard && (
+        <CardDetailModal
+          card={selectedCard}
+          deckId={deck.id}
+          decks={decks}
+          onUpdateCard={onUpdateCard}
+          onUpdateCardSRS={onUpdateCardSRS}
+          onCopyCardToDeck={onCopyCardToDeck}
+          onRemoveCard={onRemoveCard}
+          onClose={() => setSelectedCardId(null)}
+        />
       )}
     </div>
   );

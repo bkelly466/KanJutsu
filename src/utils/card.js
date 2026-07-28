@@ -91,3 +91,56 @@ export function createCard(item, type = 'kanji') {
     addedAt: new Date().toISOString(),
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Custom definitions                                                          */
+/*                                                                             */
+/* A user can reword a card's meanings into their own language. We keep the    */
+/* dictionary's original text alongside the edit so it can always be restored. */
+/* All three helpers are pure and return a NEW `back` object — they never      */
+/* mutate the one passed in, since it belongs to React state.                  */
+/*                                                                             */
+/* This lives in `back`, which is an a.json() field, so none of it needs a     */
+/* schema change.                                                              */
+/* -------------------------------------------------------------------------- */
+
+/** True when this card's meanings have been edited away from the original. */
+export function hasCustomMeanings(back) {
+  return Boolean(back && back.originalMeanings != null);
+}
+
+/**
+ * Apply an edited definition, preserving the dictionary's original text.
+ *
+ * `originalMeanings` is only recorded on the FIRST edit — otherwise a second
+ * edit would overwrite the true original with the first edit, and "revert"
+ * would take the user back to their own earlier wording instead of the
+ * dictionary's.
+ *
+ * @param {object} back      the card's current back object
+ * @param {string} meanings  the new definition text
+ */
+export function applyCustomMeanings(back, meanings) {
+  const current = back || {};
+  return {
+    ...current,
+    meanings,
+    originalMeanings: hasCustomMeanings(current)
+      ? current.originalMeanings
+      : current.meanings ?? '',
+  };
+}
+
+/**
+ * Restore the dictionary's original definition and drop the custom one.
+ * A no-op (returns an equivalent object) if there was no edit to undo.
+ */
+export function revertMeanings(back) {
+  const current = back || {};
+  if (!hasCustomMeanings(current)) return { ...current };
+
+  // Pull originalMeanings off the object rather than setting it to null, so a
+  // reverted card is indistinguishable from one that was never edited.
+  const { originalMeanings, ...rest } = current;
+  return { ...rest, meanings: originalMeanings };
+}

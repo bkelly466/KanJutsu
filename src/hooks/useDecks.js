@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import { createCard } from '../utils/card';
+import { getDefaultSRSState } from '../utils/srs';
 
 /**
  * Cloud-backed decks, replacing the old localStorage version.
@@ -167,6 +168,64 @@ export function useDecks(enabled) {
     }
   };
 
+  /**
+   * Update non-SRS card fields (currently the custom definition in `back`).
+   *
+   * Separate from updateCardSRS because `back` is an a.json() field: it must be
+   * stringified on write, exactly as updateDeck does for `category`. Passing a
+   * raw object through updateCardSRS would be rejected by AppSync.
+   */
+  const updateCard = async (cardId, updates) => {
+    try {
+      const payload = { id: cardId, ...updates };
+      if (payload.back != null && typeof payload.back !== 'string') {
+        payload.back = JSON.stringify(payload.back);
+      }
+      throwIfErrors(await client.models.Card.update(payload));
+      await loadData();
+      return true;
+    } catch (e) {
+      console.error('updateCard failed:', e);
+      setError(friendlyError(e));
+      return false;
+    }
+  };
+
+  /**
+   * Copy an EXISTING card into another deck.
+   *
+   * addCardToDeck can't be reused here: it takes raw kanji/word API data and
+   * runs it through createCard, which we no longer have for a saved card. This
+   * instead re-uses toModelInput, which already accepts the built-card shape
+   * that toUiCard produces.
+   *
+   * The copy starts with fresh SRS state — a different deck is a separate study
+   * context, so inheriting the original's streak would misrepresent it.
+   *
+   * Returns true when the card ends up in the deck (copied, or already there).
+   */
+  const copyCardToDeck = async (targetDeckId, card) => {
+    try {
+      const exists = rawCards.some(
+        (c) => c.deckId === targetDeckId && c.cardKey === card.key
+      );
+      if (exists) return true;
+
+      const fresh = {
+        ...card,
+        ...getDefaultSRSState(),
+        addedAt: new Date().toISOString(),
+      };
+      throwIfErrors(await client.models.Card.create(toModelInput(targetDeckId, fresh)));
+      await loadData();
+      return true;
+    } catch (e) {
+      console.error('copyCardToDeck failed:', e);
+      setError(friendlyError(e));
+      return false;
+    }
+  };
+
   return {
     decks,
     isLoading,
@@ -178,6 +237,8 @@ export function useDecks(enabled) {
     addCardToDeck,
     removeCardFromDeck,
     updateCardSRS,
+    updateCard,
+    copyCardToDeck,
   };
 }
 
@@ -240,6 +301,7 @@ function toModelInput(deckId, card) {
     easeFactor: card.easeFactor,
     interval: card.interval,
     nextReviewDate: card.nextReviewDate,
+    lastReviewedDate: card.lastReviewedDate ?? null,
     addedAt: card.addedAt,
   };
 }
@@ -261,6 +323,9 @@ function toUiCard(record) {
     easeFactor: record.easeFactor ?? 2.5,
     interval: record.interval ?? 0,
     nextReviewDate: record.nextReviewDate,
+    // Null on cards that have never been reviewed, and on any card created
+    // before this field was added to the schema.
+    lastReviewedDate: record.lastReviewedDate ?? null,
     addedAt: record.addedAt,
   };
 }

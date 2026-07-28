@@ -149,14 +149,16 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
           {/* Front */}
           {/* Words can be several characters long, so their size scales with
               the viewport; a single kanji is always one glyph and can stay
-              large. `wordBreak` stops a long compound overflowing the card. */}
+              large. `keep-all` forbids breaking inside a run of CJK characters
+              — without it a long word stacks one character per line, which
+              changes how it reads. */}
           <div
             style={{
               fontSize: isWord ? 'clamp(2rem, 9vw, 3rem)' : 'clamp(3.5rem, 16vw, 5rem)',
               fontWeight: 'bold',
               lineHeight: 1.1,
               marginBottom: '0.5rem',
-              wordBreak: 'break-word',
+              wordBreak: 'keep-all',
             }}
           >
             {current.front}

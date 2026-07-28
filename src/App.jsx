@@ -36,6 +36,8 @@ function App() {
     addCardToDeck,
     removeCardFromDeck,
     updateCardSRS,
+    updateCard,
+    copyCardToDeck,
   } = useDecks(authed);
 
   const selectedDeck = decks.find(d => d.id === selectedDeckId);
@@ -90,9 +92,15 @@ function App() {
       return (
         <DeckDetail
           deck={selectedDeck}
+          // The full list, so the card detail modal can offer to add a card
+          // to any of the user's other decks.
+          decks={decks}
           onBack={handleBackToList}
           onStudy={handleStudy}
           onRemoveCard={removeCardFromDeck}
+          onUpdateCard={updateCard}
+          onUpdateCardSRS={updateCardSRS}
+          onCopyCardToDeck={copyCardToDeck}
         />
       );
     }

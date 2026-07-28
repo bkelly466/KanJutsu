@@ -18,9 +18,12 @@ const SRS_DEFAULTS = {
   interval: 0,
 };
 
-export const getDefaultSRSState = () => ({ 
+export const getDefaultSRSState = () => ({
   ...SRS_DEFAULTS,
-  nextReviewDate: new Date().toISOString()
+  nextReviewDate: new Date().toISOString(),
+  // Null = never reviewed. Because this is exactly the state a brand-new card
+  // starts in, resetting a card's SRS is just writing this object back.
+  lastReviewedDate: null
 });
 
 const MIN_EASE_FACTOR = 1.3;
@@ -79,6 +82,9 @@ export const calculateNextReview = (card, quality) => {
     easeFactor: newEaseFactor,
     interval: newInterval,
     nextReviewDate: nextReviewDate.toISOString(),
+    // Every rating in the app flows through this function, so stamping the
+    // review time here is enough to keep the card's history accurate.
+    lastReviewedDate: new Date().toISOString(),
   };
 };
 
@@ -100,3 +106,14 @@ export const daysUntilDue = (card) => {
 /** Return the cards that are due for review today (or overdue). */
 export const getCardsForReview = (cards) =>
   cards.filter((card) => daysUntilDue(card) <= 0);
+
+/**
+ * Human-readable due status for a card, e.g. "Due today" / "Due in 3 days".
+ * Lives here beside daysUntilDue so the phrasing has one home.
+ */
+export const dueLabel = (card) => {
+  const days = daysUntilDue(card);
+  if (days <= 0) return 'Due today';
+  if (days === 1) return 'Due tomorrow';
+  return `Due in ${days} days`;
+};

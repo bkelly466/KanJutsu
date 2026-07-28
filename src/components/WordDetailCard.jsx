@@ -36,7 +36,7 @@ export default function WordDetailCard({ wordData, onClose, onKanjiClick, onOpen
               Sized with clamp() rather than Bootstrap's fixed `display-4`. */}
           <h2
             className="fw-bold text-dark mb-0"
-            style={{ fontSize: 'clamp(2rem, 8vw, 3.5rem)', wordBreak: 'break-word' }}
+            style={{ fontSize: 'clamp(2rem, 8vw, 3.5rem)', wordBreak: 'keep-all' }}
           >
             {onKanjiClick
               ? renderWithClickableKanji(wordData.word, null, onKanjiClick)

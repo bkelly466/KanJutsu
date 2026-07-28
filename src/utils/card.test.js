@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { sourceKey, getCardKey, createCard } from './card';
+import {
+  sourceKey,
+  getCardKey,
+  createCard,
+  applyCustomMeanings,
+  hasCustomMeanings,
+  revertMeanings,
+} from './card';
 
 const sampleKanji = {
   kanji: '水',
@@ -89,5 +96,93 @@ describe('createCard (default type)', () => {
     expect(card.type).toBe('kanji');
     expect(card.key).toBe('水');
     expect(card.back.onyomi).toBe('スイ');
+  });
+});
+
+// --- custom definitions ------------------------------------------------------
+
+// A word card's back, including the nested verbForms object that must survive
+// an edit untouched.
+const wordBack = {
+  meanings: 'to eat',
+  reading: 'たべる',
+  verbForms: {
+    class: 'ichidan',
+    base: { word: '食べる', reading: 'たべる' },
+    polite: { word: '食べます', reading: 'たべます' },
+  },
+};
+
+describe('hasCustomMeanings', () => {
+  it('is false for an untouched back', () => {
+    expect(hasCustomMeanings(wordBack)).toBe(false);
+  });
+
+  it('is true once an edit has stashed the original', () => {
+    expect(hasCustomMeanings(applyCustomMeanings(wordBack, 'to consume'))).toBe(true);
+  });
+
+  it('tolerates a null/missing back', () => {
+    expect(hasCustomMeanings(null)).toBe(false);
+    expect(hasCustomMeanings(undefined)).toBe(false);
+  });
+});
+
+describe('applyCustomMeanings', () => {
+  it('replaces the meanings and records the original', () => {
+    const edited = applyCustomMeanings(wordBack, 'to consume');
+    expect(edited.meanings).toBe('to consume');
+    expect(edited.originalMeanings).toBe('to eat');
+  });
+
+  it('keeps the FIRST original across repeated edits', () => {
+    // Otherwise a second edit would overwrite the dictionary's text with the
+    // user's first wording, and "revert" would restore the wrong thing.
+    const once = applyCustomMeanings(wordBack, 'to consume');
+    const twice = applyCustomMeanings(once, 'to devour');
+    expect(twice.meanings).toBe('to devour');
+    expect(twice.originalMeanings).toBe('to eat');
+  });
+
+  it('preserves the other back fields, including nested verbForms', () => {
+    const edited = applyCustomMeanings(wordBack, 'to consume');
+    expect(edited.reading).toBe('たべる');
+    expect(edited.verbForms).toEqual(wordBack.verbForms);
+  });
+
+  it('does not mutate the back it was given', () => {
+    const original = { ...wordBack };
+    applyCustomMeanings(wordBack, 'to consume');
+    expect(wordBack).toEqual(original);
+  });
+
+  it('handles a missing back', () => {
+    const edited = applyCustomMeanings(null, 'a meaning');
+    expect(edited.meanings).toBe('a meaning');
+    expect(edited.originalMeanings).toBe('');
+  });
+});
+
+describe('revertMeanings', () => {
+  it('restores the original text', () => {
+    const edited = applyCustomMeanings(wordBack, 'to consume');
+    expect(revertMeanings(edited).meanings).toBe('to eat');
+  });
+
+  it('leaves no trace of the edit, so the card looks untouched again', () => {
+    const edited = applyCustomMeanings(wordBack, 'to consume');
+    const reverted = revertMeanings(edited);
+    expect(hasCustomMeanings(reverted)).toBe(false);
+    expect('originalMeanings' in reverted).toBe(false);
+  });
+
+  it('keeps the other back fields', () => {
+    const reverted = revertMeanings(applyCustomMeanings(wordBack, 'to consume'));
+    expect(reverted.verbForms).toEqual(wordBack.verbForms);
+    expect(reverted.reading).toBe('たべる');
+  });
+
+  it('is a no-op on a back that was never edited', () => {
+    expect(revertMeanings(wordBack)).toEqual(wordBack);
   });
 });
