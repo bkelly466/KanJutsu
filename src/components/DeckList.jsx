@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { getCardsForReview } from '../utils/srs';
 import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR } from '../constants/categories';
 import CreateDeckModal from './CreateDeckModal';
+import Modal from './Modal';
 
 export default function DeckList({ decks, onCreateDeck, onUpdateDeck, onDeleteDeck, onSelectDeck, onStudyDeck }) {
   const [showCreate, setShowCreate] = useState(false);
@@ -132,24 +133,23 @@ export default function DeckList({ decks, onCreateDeck, onUpdateDeck, onDeleteDe
       )}
 
       {confirmDelete && (
-        <div className="modal d-block" style={{ background: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-dialog-centered modal-sm">
-            <div className="modal-content">
-              <div className="modal-body text-center py-4">
-                <p className="fw-semibold mb-1">Delete "{confirmDelete.name}"?</p>
-                <p className="text-muted small">This will remove the deck and all {confirmDelete.cards.length} cards.</p>
-              </div>
-              <div className="modal-footer border-0 justify-content-center gap-2">
-                <button className="btn btn-outline-secondary btn-sm" onClick={() => setConfirmDelete(null)}>
-                  Cancel
-                </button>
-                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(confirmDelete.id)}>
-                  Delete
-                </button>
-              </div>
-            </div>
+        // closeOnBackdrop={false} preserves this modal's existing behaviour —
+        // it never had a backdrop click handler. That matters more on touch,
+        // where a stray tap outside a destructive confirm is easy to make.
+        <Modal size="sm" closeOnBackdrop={false} onClose={() => setConfirmDelete(null)}>
+          <div className="modal-body text-center py-4">
+            <p className="fw-semibold mb-1">Delete &quot;{confirmDelete.name}&quot;?</p>
+            <p className="text-muted small">This will remove the deck and all {confirmDelete.cards.length} cards.</p>
           </div>
-        </div>
+          <div className="modal-footer border-0 justify-content-center gap-2">
+            <button className="btn btn-outline-secondary btn-sm touch-target" onClick={() => setConfirmDelete(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger btn-sm touch-target" onClick={() => handleDelete(confirmDelete.id)}>
+              Delete
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );
