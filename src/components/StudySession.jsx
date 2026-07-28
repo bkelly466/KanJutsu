@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { calculateNextReview, getCardsForReview } from '../utils/srs';
+import { useBackButton } from '../hooks/useBackButton';
 
 const RATINGS = [
   { quality: 0, label: 'Again', color: '#dc3545', hint: 'Complete blackout' },
@@ -17,6 +18,10 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [sessionStats, setSessionStats] = useState({ again: 0, hard: 0, good: 0, easy: 0 });
   const [done, setDone] = useState(false);
+
+  // Device Back exits the session (same as the Exit button) rather than
+  // leaving the app mid-review.
+  useBackButton(true, onBack);
 
   const total = queue.length;
   const current = queue[currentIndex];

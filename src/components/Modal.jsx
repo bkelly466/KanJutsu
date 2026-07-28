@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useBackButton } from '../hooks/useBackButton';
 
 /**
  * Shared modal shell.
@@ -28,6 +29,11 @@ export default function Modal({
   closeOnBackdrop = true,
   children,
 }) {
+  // The device Back button closes the modal rather than leaving the app.
+  // Every modal in the app routes through this component, so wiring it here
+  // covers all of them. `true` because the component only exists while open.
+  useBackButton(true, onClose);
+
   // Lock scrolling on the page behind the modal.
   //
   // Bootstrap's JS normally does this; we're not using it, so we do it by hand.
