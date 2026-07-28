@@ -25,7 +25,11 @@ export default function WordList({ words, expandedWordId, setExpandedWordId }) {
             onClick={() => setExpandedWordId(isSelected ? null : wordData.id)}
           >
             <div className="text-start">
-              <div className="fs-5 fw-semibold">
+              {/* wordBreak: keep-all forbids breaking *inside* a run of CJK
+                  characters, so a word never stacks vertically when the row is
+                  tight. Breaks are still allowed elsewhere, so the parenthesised
+                  reading can drop to the next line — which is what we want. */}
+              <div className="fs-5 fw-semibold" style={{ wordBreak: 'keep-all' }}>
                 {wordData.word}
                 {wordData.reading && wordData.reading !== wordData.word && (
                   <span className={`ms-2 small ${isSelected ? '' : 'text-muted'}`}>

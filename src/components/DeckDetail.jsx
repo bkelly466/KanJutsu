@@ -65,10 +65,27 @@ export default function DeckDetail({ deck, onBack, onStudy, onRemoveCard }) {
                 className="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2"
               >
                 <div className="d-flex align-items-center gap-3 flex-grow-1" style={{ minWidth: '12rem' }}>
-                  <span style={{ fontSize: '1.8rem', fontWeight: 'bold', lineHeight: 1 }}>
+                  {/* Japanese has no spaces, and CJK text is allowed to break
+                      between any two characters — so as a shrinkable flex item
+                      a word like 勉強する collapses into a vertical stack when
+                      the row gets tight. `flexShrink: 0` keeps the headword at
+                      its natural width and `nowrap` forbids the break; the
+                      meanings beside it absorb the shrinking instead. */}
+                  <span
+                    style={{
+                      fontSize: '1.8rem',
+                      fontWeight: 'bold',
+                      lineHeight: 1,
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
                     {card.front ?? card.kanji}
                   </span>
-                  <div>
+                  {/* minWidth: 0 lets this block shrink below its content width.
+                      Flex items default to min-width:auto, which would otherwise
+                      stop it shrinking and push the row wider. */}
+                  <div style={{ minWidth: 0 }}>
                     <div className="text-muted small">
                       {card.back.meanings}
                     </div>
