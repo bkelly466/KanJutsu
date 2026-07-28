@@ -28,10 +28,16 @@ export default function WordDetailCard({ wordData, onClose, onKanjiClick, onOpen
       </div>
 
       <div className="card-body p-4 pt-0">
-        <div className="d-flex justify-content-between align-items-start mb-1">
+        {/* flex-wrap + gap: on a phone the headword takes the full width and
+            "Add to Deck" drops below it instead of colliding with it. */}
+        <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-1">
           {/* Headword. Each kanji is a button that cross-navigates to Kanji mode.
-              currentKanji is null here: in word mode no single kanji is "current". */}
-          <h2 className="display-4 fw-bold text-dark mb-0">
+              currentKanji is null here: in word mode no single kanji is "current".
+              Sized with clamp() rather than Bootstrap's fixed `display-4`. */}
+          <h2
+            className="fw-bold text-dark mb-0"
+            style={{ fontSize: 'clamp(2rem, 8vw, 3.5rem)', wordBreak: 'break-word' }}
+          >
             {onKanjiClick
               ? renderWithClickableKanji(wordData.word, null, onKanjiClick)
               : wordData.word}
