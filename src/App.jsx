@@ -144,9 +144,13 @@ function App() {
 
   return (
     <>
-      <div className="container my-5 text-dark">
-        <div className="brand-header text-center mb-5">
-          <div className="brand-badge-container mt-5">
+      {/* Bootstrap's responsive spacing utilities: `my-3` applies at every width,
+          `my-md-5` overrides it from the md breakpoint (768px) up. So phones get
+          tight spacing and desktop keeps the original roomier layout. Without
+          this the brand block fills a whole phone screen before the search box. */}
+      <div className="container my-3 my-md-5 text-dark">
+        <div className="brand-header text-center mb-4 mb-md-5">
+          <div className="brand-badge-container mt-3 mt-md-5">
             <img src={logo} alt="Kanjutsu Logo" className="brand-logo-watermark" />
             <h1 className="brand-title">KanJutsu</h1>
           </div>

@@ -58,7 +58,10 @@ export default function Query({ onOpenDeckPicker }) {
         <p className="text-muted text-center py-3">Word results loading…</p>
       ) : (
         results.length > 0 && (
-          <div className="container">
+          // Plain div, not `.container` — this sits inside App's own
+          // `.container`, and nesting them double-applies Bootstrap's gutter
+          // padding, which visibly narrows results on a phone.
+          <div>
             {/* Detail card sits above the list when a word is selected. */}
             {expandedWordId && (
               <WordDetailCard

@@ -16,7 +16,11 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  height: 250px; /* Significantly smaller scale */
+  /* clamp(min, preferred, max) scales the value with the viewport but never
+     goes outside the min/max bounds. Here: 34% of the viewport width, floored
+     at 120px on a phone and capped at the original 250px on desktop — so the
+     watermark shrinks with the title instead of dominating a small screen. */
+  height: clamp(120px, 34vw, 250px);
   width: auto;
   object-fit: contain;
   opacity: 0.25; /* Softened so text remains completely readable */
@@ -27,10 +31,14 @@
 /* Title text spread across the top */
 .brand-title {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 4.2rem;
+  /* Scales between 2.2rem on a 375px phone and the original 4.2rem on desktop.
+     Without this, "KANJUTSU" at 4.2rem + 8px tracking overflows a phone. */
+  font-size: clamp(2.2rem, 9vw, 4.2rem);
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 8px; /* Spreads the title text widely over the logo width */
+  /* Tracking has to shrink with the font, or the letters stay pushed apart and
+     the title wraps even at the smaller size. */
+  letter-spacing: clamp(2px, 1.5vw, 8px);
   margin-bottom: 7px;
   margin-top: 10px;
   position: relative;
@@ -90,9 +98,13 @@
 
 /* Clean accent divider */
 .brand-divider {
-  width: 300px;
+  /* min() picks whichever is smaller, so the divider is 300px on desktop but
+     never wider than 70% of a narrow screen. */
+  width: min(300px, 70%);
   height: 2px;
   background-color: #dc3545;
   border-radius: 2px;
-  margin: 50px auto 16px auto;
+  /* The 50px top margin is a big chunk of a phone screen — scale it down so
+     the search box sits higher up. */
+  margin: clamp(20px, 6vw, 50px) auto 16px auto;
 }

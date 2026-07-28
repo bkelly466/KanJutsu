@@ -1,0 +1,12 @@
+/* Global base styles. Loaded by main.jsx before App.css. */
+
+/* Touch behaviour for interactive elements.
+   `manipulation` tells the browser this element only needs pan/pinch — it will
+   never be double-tap-to-zoom. That lets mobile browsers fire the click
+   immediately instead of waiting ~300ms to see if a second tap is coming, so
+   buttons feel responsive rather than laggy on a phone. */
+button,
+a,
+.kanji-link {
+  touch-action: manipulation;
+}
