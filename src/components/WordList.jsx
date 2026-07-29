@@ -29,7 +29,10 @@ export default function WordList({ words, expandedWordId, setExpandedWordId }) {
                   characters, so a word never stacks vertically when the row is
                   tight. Breaks are still allowed elsewhere, so the parenthesised
                   reading can drop to the next line — which is what we want. */}
-              <div className="fs-5 fw-semibold" style={{ wordBreak: 'keep-all' }}>
+              <div
+                className="fs-5 fw-semibold"
+                style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}
+              >
                 {wordData.word}
                 {wordData.reading && wordData.reading !== wordData.word && (
                   <span className={`ms-2 small ${isSelected ? '' : 'text-muted'}`}>
