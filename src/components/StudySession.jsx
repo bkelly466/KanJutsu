@@ -158,7 +158,14 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
               fontWeight: 'bold',
               lineHeight: 1.1,
               marginBottom: '0.5rem',
+              // keep-all forbids breaking inside a run of CJK characters, so a
+              // word never stacks one character per line. overflowWrap is the
+              // safety net: it only engages when a word cannot fit on a line at
+              // all, so a very long compound wraps instead of running off the
+              // card. The front of a flashcard must never be truncated — the
+              // whole point is to read it — so no ellipsis here.
               wordBreak: 'keep-all',
+              overflowWrap: 'anywhere',
             }}
           >
             {current.front}

@@ -148,13 +148,17 @@ export function useDecks(enabled) {
     }
   };
 
+  // Returns true on success so callers rendered ABOVE the app-level error
+  // banner (the card detail modal) can surface their own failure message.
   const removeCardFromDeck = async (deckId, cardId) => {
     try {
       throwIfErrors(await client.models.Card.delete({ id: cardId }));
       await loadData();
+      return true;
     } catch (e) {
       console.error('removeCardFromDeck failed:', e);
       setError(friendlyError(e));
+      return false;
     }
   };
 
@@ -162,9 +166,11 @@ export function useDecks(enabled) {
     try {
       throwIfErrors(await client.models.Card.update({ id: cardId, ...srsMetrics }));
       await loadData();
+      return true;
     } catch (e) {
       console.error('updateCardSRS failed:', e);
       setError(friendlyError(e));
+      return false;
     }
   };
 

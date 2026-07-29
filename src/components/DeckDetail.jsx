@@ -3,6 +3,20 @@ import { getCardsForReview } from '../utils/srs';
 import { useBackButton } from '../hooks/useBackButton';
 import CardDetailModal from './CardDetailModal';
 
+/**
+ * Truncate a single line with an ellipsis instead of wrapping.
+ *
+ * All three properties are required together: `nowrap` keeps the text on one
+ * line, `hidden` clips what doesn't fit, and `ellipsis` draws the "…". The
+ * element also needs a constrained width — here that comes from the parent's
+ * `minWidth: 0`, without which a flex item refuses to shrink below its content.
+ */
+const ELLIPSIS = {
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+};
+
 export default function DeckDetail({
   deck,
   decks,
@@ -98,35 +112,34 @@ export default function DeckDetail({
                   type="button"
                   className="list-group-item list-group-item-action d-flex align-items-center text-start"
                   onClick={() => setSelectedCardId(card.id)}
-                  aria-label={`Details for ${card.front ?? card.kanji}`}
                 >
                   {/* minWidth: 0 lets this block shrink below its content width.
                       Flex items default to min-width:auto, which would otherwise
-                      push the chevron off the right edge. */}
+                      push the chevron off the right edge — and it's also what
+                      makes the ellipsis below possible. */}
                   <div className="flex-grow-1" style={{ minWidth: 0 }}>
-                    <div className="d-flex flex-wrap align-items-baseline gap-2">
-                      {/* keep-all forbids a break inside a run of CJK characters,
-                          so a word never stacks one character per line. */}
+                    {/* Both lines truncate with an ellipsis rather than wrapping:
+                        a row is a summary, and the full text is one tap away in
+                        the modal. `nowrap` also removes any chance of Japanese
+                        stacking one character per line, since there is no line
+                        to break onto. */}
+                    <div style={ELLIPSIS}>
                       <span
-                        style={{
-                          fontSize: '1.8rem',
-                          fontWeight: 'bold',
-                          lineHeight: 1.2,
-                          wordBreak: 'keep-all',
-                        }}
+                        style={{ fontSize: '1.8rem', fontWeight: 'bold', lineHeight: 1.2 }}
                       >
                         {card.front ?? card.kanji}
                       </span>
-                      {reading && (
-                        <span className="text-muted" style={{ wordBreak: 'keep-all' }}>
-                          ({reading})
-                        </span>
-                      )}
+                      {reading && <span className="text-muted ms-2">({reading})</span>}
                     </div>
-                    <div className="text-muted small">{card.back.meanings}</div>
+                    <div className="text-muted small" style={ELLIPSIS}>
+                      {card.back.meanings}
+                    </div>
                   </div>
 
-                  {/* Decorative — the row's aria-label already names the card. */}
+                  {/* Decorative. The button has no aria-label: that would
+                      REPLACE the name computed from its contents, so a screen
+                      reader would announce only "Details for 水" and lose the
+                      reading and meaning it currently reads out. */}
                   <span
                     className="text-muted ms-3"
                     style={{ fontSize: '2rem', lineHeight: 1, flexShrink: 0 }}

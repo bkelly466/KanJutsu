@@ -36,7 +36,13 @@ export default function WordDetailCard({ wordData, onClose, onKanjiClick, onOpen
               Sized with clamp() rather than Bootstrap's fixed `display-4`. */}
           <h2
             className="fw-bold text-dark mb-0"
-            style={{ fontSize: 'clamp(2rem, 8vw, 3.5rem)', wordBreak: 'keep-all' }}
+            // This card IS the detail view, so the headword is never truncated;
+            // overflowWrap only engages when a long word can't fit at all.
+            style={{
+              fontSize: 'clamp(2rem, 8vw, 3.5rem)',
+              wordBreak: 'keep-all',
+              overflowWrap: 'anywhere',
+            }}
           >
             {onKanjiClick
               ? renderWithClickableKanji(wordData.word, null, onKanjiClick)
