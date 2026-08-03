@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { getCardsForReview } from '../utils/srs';
 import { useBackButton } from '../hooks/useBackButton';
 import { useNavigation } from '../context/navigationContext';
+import { useSelectedDeck } from '../hooks/useSelectedDeck';
 import CardDetailModal from './CardDetailModal';
 
 /**
@@ -18,15 +19,9 @@ const ELLIPSIS = {
   textOverflow: 'ellipsis',
 };
 
-export default function DeckDetail({
-  deck,
-  decks,
-  onRemoveCard,
-  onUpdateCard,
-  onUpdateCardSRS,
-  onCopyCardToDeck,
-}) {
+export default function DeckDetail() {
   const { backToList, studySelected } = useNavigation();
+  const deck = useSelectedDeck();
 
   // Track the card by ID, not the object: useDecks refetches after every
   // mutation and rebuilds `decks`, so a held card object would go stale the
@@ -162,11 +157,6 @@ export default function DeckDetail({
         <CardDetailModal
           card={selectedCard}
           deckId={deck.id}
-          decks={decks}
-          onUpdateCard={onUpdateCard}
-          onUpdateCardSRS={onUpdateCardSRS}
-          onCopyCardToDeck={onCopyCardToDeck}
-          onRemoveCard={onRemoveCard}
           onClose={() => setSelectedCardId(null)}
         />
       )}

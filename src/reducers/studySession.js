@@ -9,7 +9,7 @@
  *
  * The one hard rule for a reducer: it must be **pure**. No network calls, no
  * randomness, no reading the clock. So the SM-2 math (`calculateNextReview`) and
- * the cloud write (`onUpdateCardSRS`) stay in the component, and the already
+ * the cloud write (`updateCardSRS`) stay in the component, and the already
  * computed result is handed in on the action as `metrics`.
  */
 

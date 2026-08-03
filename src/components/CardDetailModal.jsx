@@ -3,6 +3,7 @@ import Modal from './Modal';
 import { applyCustomMeanings, hasCustomMeanings, revertMeanings } from '../utils/card';
 import { dueLabel, getDefaultSRSState } from '../utils/srs';
 import { formatDate } from '../utils/date';
+import { useDecksContext } from '../context/decksContext';
 
 /**
  * Everything about one card, reached by tapping its row in the deck view.
@@ -10,27 +11,25 @@ import { formatDate } from '../utils/date';
  * Lets the user reword the definition, see the card's SRS history, reset that
  * history, add the card to another deck, or remove it from this one.
  *
+ * The deck list and the four mutations come from DecksContext. They used to be
+ * props, which meant DeckDetail had to accept five values it never used itself
+ * just to hand them over.
+ *
  * Props:
- *   card             - the card to show (looked up fresh by the parent each
- *                      render, so it never goes stale after a refetch)
- *   deckId           - the deck the card is currently being viewed in
- *   decks            - all the user's decks, for the "add to another deck" list
- *   onUpdateCard     - (cardId, updates) => Promise<boolean>
- *   onUpdateCardSRS  - (cardId, srsMetrics) => Promise<void>
- *   onCopyCardToDeck - (targetDeckId, card) => Promise<boolean>
- *   onRemoveCard     - (deckId, cardId) => Promise<void>
- *   onClose          - dismiss the modal
+ *   card    - the card to show (looked up fresh by the parent each render, so
+ *             it never goes stale after a refetch)
+ *   deckId  - the deck the card is currently being viewed in
+ *   onClose - dismiss the modal
  */
-export default function CardDetailModal({
-  card,
-  deckId,
-  decks,
-  onUpdateCard,
-  onUpdateCardSRS,
-  onCopyCardToDeck,
-  onRemoveCard,
-  onClose,
-}) {
+export default function CardDetailModal({ card, deckId, onClose }) {
+  const {
+    decks,
+    updateCard,
+    updateCardSRS,
+    copyCardToDeck,
+    removeCardFromDeck,
+  } = useDecksContext();
+
   const [draftMeanings, setDraftMeanings] = useState(card.back.meanings ?? '');
   // One busy flag for every write in this modal. Without it, a save and a
   // revert can be in flight at once: revert computes from the pre-save
@@ -66,7 +65,7 @@ export default function CardDetailModal({
   const handleSaveDefinition = async () => {
     setIsBusy(true);
     setActionError(null);
-    const ok = await onUpdateCard(card.id, {
+    const ok = await updateCard(card.id, {
       back: applyCustomMeanings(card.back, trimmedDraft),
     });
     if (ok) setSavedNotice(true);
@@ -78,7 +77,7 @@ export default function CardDetailModal({
     setIsBusy(true);
     setActionError(null);
     const reverted = revertMeanings(card.back);
-    const ok = await onUpdateCard(card.id, { back: reverted });
+    const ok = await updateCard(card.id, { back: reverted });
     // Only pull the textarea back in step once the write succeeded, so a failed
     // revert doesn't show the user text that isn't actually saved.
     if (ok) {
@@ -95,7 +94,7 @@ export default function CardDetailModal({
     setActionError(null);
     // getDefaultSRSState() is the exact state a brand-new card starts in, so
     // reset and card creation can't drift apart.
-    const ok = await onUpdateCardSRS(card.id, getDefaultSRSState());
+    const ok = await updateCardSRS(card.id, getDefaultSRSState());
     // Only dismiss the confirm when it actually worked — otherwise the box
     // disappearing reads as success.
     if (ok) setConfirming(null);
@@ -109,7 +108,7 @@ export default function CardDetailModal({
     // quick taps would both see "not there yet" and create duplicates.
     setPendingDeckId(targetDeckId);
     setActionError(null);
-    const ok = await onCopyCardToDeck(targetDeckId, card);
+    const ok = await copyCardToDeck(targetDeckId, card);
     if (ok) setCopiedDeckIds((prev) => new Set([...prev, targetDeckId]));
     else setActionError("Couldn't add the card to that deck. Please try again.");
     setPendingDeckId(null);
@@ -118,7 +117,7 @@ export default function CardDetailModal({
   const handleRemove = async () => {
     setIsBusy(true);
     setActionError(null);
-    const ok = await onRemoveCard(deckId, card.id);
+    const ok = await removeCardFromDeck(deckId, card.id);
     if (ok) onClose();
     else {
       setActionError("Couldn't remove this card. Please try again.");

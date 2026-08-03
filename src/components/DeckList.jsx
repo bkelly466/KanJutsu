@@ -2,30 +2,32 @@ import { useState } from 'react';
 import { getCardsForReview } from '../utils/srs';
 import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR } from '../constants/categories';
 import { useNavigation } from '../context/navigationContext';
+import { useDecksContext } from '../context/decksContext';
 import CreateDeckModal from './CreateDeckModal';
 import Modal from './Modal';
 
-export default function DeckList({ decks, onCreateDeck, onUpdateDeck, onDeleteDeck }) {
+export default function DeckList() {
   // Opening a deck and jumping into a session are navigation, not deck data.
   const { selectDeck, studyDeck } = useNavigation();
+  const { decks, createDeck, updateDeck, deleteDeck } = useDecksContext();
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingDeck, setEditingDeck] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const handleCreate = async (deckData) => {
-    await onCreateDeck(deckData);
+    await createDeck(deckData);
     // Close either way; any failure is shown via the error banner.
     setShowCreate(false);
   };
 
   const handleEdit = (deckData) => {
-    onUpdateDeck(editingDeck.id, deckData);
+    updateDeck(editingDeck.id, deckData);
     setEditingDeck(null);
   };
 
   const handleDelete = (deckId) => {
-    onDeleteDeck(deckId);
+    deleteDeck(deckId);
     setConfirmDelete(null);
   };
 

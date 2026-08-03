@@ -3,6 +3,8 @@ import { calculateNextReview, getCardsForReview } from '../utils/srs';
 import { initStudySession, studySessionReducer } from '../reducers/studySession';
 import { useBackButton } from '../hooks/useBackButton';
 import { useNavigation } from '../context/navigationContext';
+import { useDecksContext } from '../context/decksContext';
+import { useSelectedDeck } from '../hooks/useSelectedDeck';
 
 const RATINGS = [
   { quality: 0, label: 'Again', color: '#dc3545', hint: 'Complete blackout' },
@@ -11,9 +13,11 @@ const RATINGS = [
   { quality: 5, label: 'Easy',  color: '#0d6efd', hint: 'Perfect recall' },
 ];
 
-export default function StudySession({ deck, onUpdateCardSRS }) {
+export default function StudySession() {
   // Leaving a session returns to that deck's detail view.
   const { backToDetail } = useNavigation();
+  const { updateCardSRS } = useDecksContext();
+  const deck = useSelectedDeck();
 
   // All five pieces of session state live in one reducer, because rating a card
   // changes four of them at once. The third argument is a lazy initializer: the
@@ -39,7 +43,7 @@ export default function StudySession({ deck, onUpdateCardSRS }) {
     // The SM-2 math and the cloud write stay here: a reducer has to be pure, so
     // it receives the already computed `metrics` rather than calculating them.
     const metrics = calculateNextReview(current, quality);
-    onUpdateCardSRS(current.id, metrics);
+    updateCardSRS(current.id, metrics);
 
     const ratingKey = RATINGS.find(r => r.quality === quality)?.label.toLowerCase();
     dispatch({ type: 'RATE', quality, ratingKey, metrics });

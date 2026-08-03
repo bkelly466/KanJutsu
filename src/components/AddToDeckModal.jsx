@@ -3,13 +3,16 @@ import CreateDeckModal from './CreateDeckModal';
 import Modal from './Modal';
 import { sourceKey, getCardKey } from '../utils/card';
 import { useNavigation } from '../context/navigationContext';
+import { useDecksContext } from '../context/decksContext';
 
 // Works for both a kanji item (type 'kanji') and a word item (type 'word').
 // What's being added, and closing the picker, both come from navigation context —
 // the picker is opened from the dictionary but rendered up at the app level.
-export default function AddToDeckModal({ decks, onAdd, onCreateDeck }) {
+export default function AddToDeckModal() {
   const { deckPickerTarget, closeDeckPicker } = useNavigation();
   const { item, type = 'kanji' } = deckPickerTarget;
+
+  const { decks, addCardToDeck, createDeck } = useDecksContext();
 
   const [showCreate, setShowCreate] = useState(false);
   const [addedDeckIds, setAddedDeckIds] = useState(new Set());
@@ -20,16 +23,17 @@ export default function AddToDeckModal({ decks, onAdd, onCreateDeck }) {
   const subtitle = (item.meanings || []).slice(0, 3).join(', ');
 
   // Only mark the deck "✓ Added" once the cloud write actually succeeds —
-  // onAdd resolves to false on failure (an error banner shows behind the modal).
+  // addCardToDeck resolves to false on failure (an error banner shows behind
+  // the modal).
   const handleAdd = async (deckId) => {
-    const ok = await onAdd(deckId, item, type);
+    const ok = await addCardToDeck(deckId, item, type);
     if (ok) setAddedDeckIds(prev => new Set([...prev, deckId]));
   };
 
   const handleCreate = async (deckData) => {
     // createDeck is async now (cloud); await the new id before adding the card.
     // It returns null if the create failed (error shown via the banner).
-    const newId = await onCreateDeck(deckData);
+    const newId = await createDeck(deckData);
     setShowCreate(false);
     if (newId) handleAdd(newId);
   };

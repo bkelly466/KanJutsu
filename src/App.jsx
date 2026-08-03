@@ -5,68 +5,38 @@ import DeckList from './components/DeckList';
 import DeckDetail from './components/DeckDetail';
 import StudySession from './components/StudySession';
 import AddToDeckModal from './components/AddToDeckModal';
-import { useDecks } from './hooks/useDecks';
 import { useNavigation } from './context/navigationContext';
+import { useDecksContext } from './context/decksContext';
+import { useSelectedDeck } from './hooks/useSelectedDeck';
 import { getCardsForReview } from './utils/srs';
 import logo from './assets/logo.png'
 
 function App() {
-  // Which tab, which Decks view, which deck, and whether the Add-to-Deck picker
-  // is open — all from NavigationContext (see context/navigationReducer.js).
-  const { activeTab, decksView, selectedDeckId, deckPickerTarget, setTab } = useNavigation();
+  // Which tab, which Decks view, and whether the Add-to-Deck picker is open —
+  // all from NavigationContext (see context/navigationReducer.js).
+  const { activeTab, decksView, deckPickerTarget, setTab } = useNavigation();
 
   // Current auth state. `user` is set when signed in, undefined when not.
   // The dictionary works regardless; only the Decks tab uses this.
   const { user, signOut } = useAuthenticator((context) => [context.user]);
   const authed = !!user;
 
-  const {
-    decks,
-    isLoading,
-    error,
-    clearError,
-    createDeck,
-    updateDeck,
-    deleteDeck,
-    addCardToDeck,
-    removeCardFromDeck,
-    updateCardSRS,
-    updateCard,
-    copyCardToDeck,
-  } = useDecks(authed);
+  // App only needs the load/error state now — every deck mutation is read from
+  // DecksContext by the component that actually calls it.
+  const { decks, isLoading, error, clearError } = useDecksContext();
+  const selectedDeck = useSelectedDeck();
 
-  const selectedDeck = decks.find(d => d.id === selectedDeckId);
   const totalDueCount = decks.reduce(
     (sum, d) => sum + getCardsForReview(d.cards).length,
     0
   );
 
+  // The `selectedDeck` guards stay: both views read the deck on their first
+  // render, so neither may mount before one is chosen (or after it's deleted).
   const renderDecksContent = () => {
-    if (decksView === 'study' && selectedDeck) {
-      return <StudySession deck={selectedDeck} onUpdateCardSRS={updateCardSRS} />;
-    }
-    if (decksView === 'detail' && selectedDeck) {
-      return (
-        <DeckDetail
-          deck={selectedDeck}
-          // The full list, so the card detail modal can offer to add a card
-          // to any of the user's other decks.
-          decks={decks}
-          onRemoveCard={removeCardFromDeck}
-          onUpdateCard={updateCard}
-          onUpdateCardSRS={updateCardSRS}
-          onCopyCardToDeck={copyCardToDeck}
-        />
-      );
-    }
-    return (
-      <DeckList
-        decks={decks}
-        onCreateDeck={createDeck}
-        onUpdateDeck={updateDeck}
-        onDeleteDeck={deleteDeck}
-      />
-    );
+    if (decksView === 'study' && selectedDeck) return <StudySession />;
+    if (decksView === 'detail' && selectedDeck) return <DeckDetail />;
+    return <DeckList />;
   };
 
   // The Decks tab gates on login: logged-out users see the sign-in form;
@@ -145,15 +115,9 @@ function App() {
 
         {activeTab === 'dictionary' ? <Query /> : renderDecksTab()}
 
-        {deckPickerTarget && (
-          <AddToDeckModal
-            decks={decks}
-            // addCardToDeck resolves to true/false so the modal can show
-            // "✓ Added" only when the cloud write succeeded.
-            onAdd={addCardToDeck}
-            onCreateDeck={createDeck}
-          />
-        )}
+        {/* Rendered at app level so it can open from either tab; it reads what
+            it's adding, and every deck it can add to, from the two contexts. */}
+        {deckPickerTarget && <AddToDeckModal />}
       </div>
     </>
   );
