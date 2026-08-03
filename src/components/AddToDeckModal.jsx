@@ -2,9 +2,15 @@ import { useState } from 'react';
 import CreateDeckModal from './CreateDeckModal';
 import Modal from './Modal';
 import { sourceKey, getCardKey } from '../utils/card';
+import { useNavigation } from '../context/navigationContext';
 
 // Works for both a kanji item (type 'kanji') and a word item (type 'word').
-export default function AddToDeckModal({ decks, item, type = 'kanji', onAdd, onCreateDeck, onClose }) {
+// What's being added, and closing the picker, both come from navigation context —
+// the picker is opened from the dictionary but rendered up at the app level.
+export default function AddToDeckModal({ decks, onAdd, onCreateDeck }) {
+  const { deckPickerTarget, closeDeckPicker } = useNavigation();
+  const { item, type = 'kanji' } = deckPickerTarget;
+
   const [showCreate, setShowCreate] = useState(false);
   const [addedDeckIds, setAddedDeckIds] = useState(new Set());
 
@@ -41,13 +47,13 @@ export default function AddToDeckModal({ decks, item, type = 'kanji', onAdd, onC
   }
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={closeDeckPicker}>
       <div className="modal-header border-0">
         <div>
           <h5 className="modal-title fw-bold">Add {title} to Deck</h5>
           <p className="text-muted small mb-0">{subtitle}</p>
         </div>
-        <button type="button" className="btn-close" onClick={onClose} aria-label="Close" />
+        <button type="button" className="btn-close" onClick={closeDeckPicker} aria-label="Close" />
       </div>
       <div className="modal-body">
         {decks.length === 0 ? (
@@ -89,7 +95,7 @@ export default function AddToDeckModal({ decks, item, type = 'kanji', onAdd, onC
         >
           + New Deck
         </button>
-        <button type="button" className="btn btn-dark btn-sm touch-target" onClick={onClose}>
+        <button type="button" className="btn btn-dark btn-sm touch-target" onClick={closeDeckPicker}>
           Done
         </button>
       </div>

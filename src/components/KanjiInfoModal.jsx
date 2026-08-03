@@ -13,11 +13,10 @@ import Modal from './Modal';
  * to return exactly where they were.
  *
  * Props:
- *   initialKanji      - the character to show first
- *   onClose           - close the whole overlay
- *   onOpenDeckPicker  - (item, type) → open the Add-to-Deck picker
+ *   initialKanji - the character to show first
+ *   onClose      - close the whole overlay
  */
-export default function KanjiInfoModal({ initialKanji, onClose, onOpenDeckPicker }) {
+export default function KanjiInfoModal({ initialKanji, onClose }) {
   // The breadcrumb of kanji we've drilled through. The last item is current.
   const [stack, setStack] = useState([initialKanji]);
   const current = stack[stack.length - 1];
@@ -98,7 +97,6 @@ export default function KanjiInfoModal({ initialKanji, onClose, onOpenDeckPicker
             selectedData={entry}
             // The card's own close button (X) closes the whole overlay.
             onClose={onClose}
-            onOpenDeckPicker={onOpenDeckPicker}
             // Tapping a kanji inside drills deeper instead of leaving.
             onKanjiClick={handleDrill}
           />

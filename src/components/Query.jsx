@@ -7,7 +7,7 @@ import KanjiInfoModal from './KanjiInfoModal';
 // The Dictionary search is word-first: every search returns vocabulary results.
 // Individual kanji are explored by tapping them, which opens a Pleco-style
 // overlay (KanjiInfoModal) — keeping the user's word results in place behind it.
-export default function Query({ onOpenDeckPicker }) {
+export default function Query() {
   const [query, setQuery] = useState('');
   const [expandedWordId, setExpandedWordId] = useState(null);
 
@@ -68,7 +68,6 @@ export default function Query({ onOpenDeckPicker }) {
                 wordData={selectedWordData}
                 onClose={() => setExpandedWordId(null)}
                 onKanjiClick={handleKanjiClick}
-                onOpenDeckPicker={onOpenDeckPicker}
               />
             )}
 
@@ -86,7 +85,6 @@ export default function Query({ onOpenDeckPicker }) {
         <KanjiInfoModal
           initialKanji={kanjiModalChar}
           onClose={() => setKanjiModalChar(null)}
-          onOpenDeckPicker={onOpenDeckPicker}
         />
       )}
     </>

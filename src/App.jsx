@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react';
 import './App.css';
 import Query from './components/Query';
@@ -7,18 +6,14 @@ import DeckDetail from './components/DeckDetail';
 import StudySession from './components/StudySession';
 import AddToDeckModal from './components/AddToDeckModal';
 import { useDecks } from './hooks/useDecks';
+import { useNavigation } from './context/navigationContext';
 import { getCardsForReview } from './utils/srs';
 import logo from './assets/logo.png'
 
-// * View states for the "My Decks" tab
-// 'list' | 'detail' | 'study'
 function App() {
-  const [activeTab, setActiveTab] = useState('dictionary');
-  const [decksView, setDecksView] = useState('list');
-  const [selectedDeckId, setSelectedDeckId] = useState(null);
-  // What the "Add to Deck" picker is currently adding: { item, type } or null.
-  // `type` is 'kanji' or 'word'.
-  const [deckPickerTarget, setDeckPickerTarget] = useState(null);
+  // Which tab, which Decks view, which deck, and whether the Add-to-Deck picker
+  // is open — all from NavigationContext (see context/navigationReducer.js).
+  const { activeTab, decksView, selectedDeckId, deckPickerTarget, setTab } = useNavigation();
 
   // Current auth state. `user` is set when signed in, undefined when not.
   // The dictionary works regardless; only the Decks tab uses this.
@@ -46,47 +41,9 @@ function App() {
     0
   );
 
-  const handleSelectDeck = (deckId) => {
-    setSelectedDeckId(deckId);
-    setDecksView('detail');
-  };
-
-  const handleStudy = () => setDecksView('study');
-
-  // Jump straight into a study session from the deck list (the "Study (n)"
-  // button), skipping the detail view.
-  const handleStudyDeck = (deckId) => {
-    setSelectedDeckId(deckId);
-    setDecksView('study');
-  };
-
-  const handleBackToList = () => {
-    setDecksView('list');
-    setSelectedDeckId(null);
-  };
-
-  const handleBackToDetail = () => setDecksView('detail');
-
-  // type defaults to 'kanji' so the kanji detail card can keep calling it
-  // with a single argument. Adding cards requires login, so if the user isn't
-  // signed in we send them to the Decks tab (which shows the login form).
-  const handleOpenDeckPicker = (item, type = 'kanji') => {
-    if (!authed) {
-      setActiveTab('decks');
-      return;
-    }
-    setDeckPickerTarget({ item, type });
-  };
-
   const renderDecksContent = () => {
     if (decksView === 'study' && selectedDeck) {
-      return (
-        <StudySession
-          deck={selectedDeck}
-          onUpdateCardSRS={updateCardSRS}
-          onBack={handleBackToDetail}
-        />
-      );
+      return <StudySession deck={selectedDeck} onUpdateCardSRS={updateCardSRS} />;
     }
     if (decksView === 'detail' && selectedDeck) {
       return (
@@ -95,8 +52,6 @@ function App() {
           // The full list, so the card detail modal can offer to add a card
           // to any of the user's other decks.
           decks={decks}
-          onBack={handleBackToList}
-          onStudy={handleStudy}
           onRemoveCard={removeCardFromDeck}
           onUpdateCard={updateCard}
           onUpdateCardSRS={updateCardSRS}
@@ -110,8 +65,6 @@ function App() {
         onCreateDeck={createDeck}
         onUpdateDeck={updateDeck}
         onDeleteDeck={deleteDeck}
-        onSelectDeck={handleSelectDeck}
-        onStudyDeck={handleStudyDeck}
       />
     );
   };
@@ -170,7 +123,7 @@ function App() {
           <li className="nav-item">
             <button
               className={`nav-link ${activeTab === 'dictionary' ? 'active text-dark fw-semibold' : 'text-muted'}`}
-              onClick={() => setActiveTab('dictionary')}
+              onClick={() => setTab('dictionary')}
             >
               Dictionary
             </button>
@@ -178,7 +131,7 @@ function App() {
           <li className="nav-item">
             <button
               className={`nav-link ${activeTab === 'decks' ? 'active text-dark fw-semibold' : 'text-muted'}`}
-              onClick={() => setActiveTab('decks')}
+              onClick={() => setTab('decks')}
             >
               My Decks
               {totalDueCount > 0 && (
@@ -190,22 +143,15 @@ function App() {
           </li>
         </ul>
 
-        {activeTab === 'dictionary' ? (
-          <Query onOpenDeckPicker={handleOpenDeckPicker} />
-        ) : (
-          renderDecksTab()
-        )}
+        {activeTab === 'dictionary' ? <Query /> : renderDecksTab()}
 
         {deckPickerTarget && (
           <AddToDeckModal
             decks={decks}
-            item={deckPickerTarget.item}
-            type={deckPickerTarget.type}
-            // Resolves to true/false so the modal can show "✓ Added" only when
-            // the cloud write succeeded.
+            // addCardToDeck resolves to true/false so the modal can show
+            // "✓ Added" only when the cloud write succeeded.
             onAdd={addCardToDeck}
             onCreateDeck={createDeck}
-            onClose={() => setDeckPickerTarget(null)}
           />
         )}
       </div>

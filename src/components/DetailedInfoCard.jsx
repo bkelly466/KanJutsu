@@ -2,6 +2,7 @@
 // buttons. Extracted to src/utils/clickableKanji.jsx so the word-lookup cards
 // can reuse the exact same behaviour.
 import { renderWithClickableKanji } from '../utils/clickableKanji';
+import { useNavigation } from '../context/navigationContext';
 
 // Presentational Component
 //
@@ -9,11 +10,14 @@ import { renderWithClickableKanji } from '../utils/clickableKanji';
 // most common words (each kanji in them clickable for drill-down).
 //
 // Props:
-//   selectedData     - enriched kanji entry (kanjiapi data + commonWords)
-//   onClose          - close the card (the X button)
-//   onOpenDeckPicker - (item, type) → open the "Add to Deck" picker
-//   onKanjiClick     - (char) → drill into another kanji (from common words)
-export default function DetailedInfoCard({ selectedData, onClose, onOpenDeckPicker, onKanjiClick }) {
+//   selectedData - enriched kanji entry (kanjiapi data + commonWords)
+//   onClose      - close the card (the X button)
+//   onKanjiClick - (char) → drill into another kanji (from common words)
+export default function DetailedInfoCard({ selectedData, onClose, onKanjiClick }) {
+  // "Add to Deck" used to arrive as a prop drilled down from App through Query
+  // and KanjiInfoModal, neither of which used it. Read it straight from context.
+  const { openDeckPicker } = useNavigation();
+
   if (!selectedData) return null;
 
   return (
@@ -42,7 +46,7 @@ export default function DetailedInfoCard({ selectedData, onClose, onOpenDeckPick
 
           <button
             className="btn btn-dark"
-            onClick={() => onOpenDeckPicker?.(selectedData, 'kanji')}
+            onClick={() => openDeckPicker(selectedData, 'kanji')}
           >
             Add to Deck
           </button>

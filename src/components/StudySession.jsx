@@ -2,6 +2,7 @@ import { useReducer } from 'react';
 import { calculateNextReview, getCardsForReview } from '../utils/srs';
 import { initStudySession, studySessionReducer } from '../reducers/studySession';
 import { useBackButton } from '../hooks/useBackButton';
+import { useNavigation } from '../context/navigationContext';
 
 const RATINGS = [
   { quality: 0, label: 'Again', color: '#dc3545', hint: 'Complete blackout' },
@@ -10,7 +11,10 @@ const RATINGS = [
   { quality: 5, label: 'Easy',  color: '#0d6efd', hint: 'Perfect recall' },
 ];
 
-export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
+export default function StudySession({ deck, onUpdateCardSRS }) {
+  // Leaving a session returns to that deck's detail view.
+  const { backToDetail } = useNavigation();
+
   // All five pieces of session state live in one reducer, because rating a card
   // changes four of them at once. The third argument is a lazy initializer: the
   // second argument is passed to it, and it only runs on the first render — so
@@ -24,7 +28,7 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
 
   // Device Back exits the session (same as the Exit button) rather than
   // leaving the app mid-review.
-  useBackButton(true, onBack);
+  useBackButton(true, backToDetail);
 
   const total = queue.length;
   const current = queue[currentIndex];
@@ -80,7 +84,7 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
           ))}
         </div>
 
-        <button className="btn btn-dark mt-3" onClick={onBack}>
+        <button className="btn btn-dark mt-3" onClick={backToDetail}>
           Back to Deck
         </button>
       </div>
@@ -91,7 +95,7 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
     return (
       <div className="text-center py-5">
         <p className="text-muted">No cards due for review.</p>
-        <button className="btn btn-outline-dark mt-2" onClick={onBack}>Back</button>
+        <button className="btn btn-outline-dark mt-2" onClick={backToDetail}>Back</button>
       </div>
     );
   }
@@ -105,7 +109,7 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
     <div>
       {/* Header */}
       <div className="d-flex align-items-center gap-3 mb-3">
-        <button className="btn btn-outline-secondary btn-sm" onClick={onBack}>
+        <button className="btn btn-outline-secondary btn-sm" onClick={backToDetail}>
           ← Exit
         </button>
         <div className="flex-grow-1">

@@ -6,11 +6,15 @@
 
 import { renderWithClickableKanji } from '../utils/clickableKanji';
 import { getVerbForms } from '../utils/conjugate';
+import { useNavigation } from '../context/navigationContext';
 
 // onKanjiClick: function(char) — called when a kanji in the word is clicked.
 //   Passed down from Query, which switches to Kanji mode and runs the lookup.
-// onOpenDeckPicker: function(item, type) — opens the "Add to Deck" picker.
-export default function WordDetailCard({ wordData, onClose, onKanjiClick, onOpenDeckPicker }) {
+export default function WordDetailCard({ wordData, onClose, onKanjiClick }) {
+  // "Add to Deck" comes from navigation context rather than a prop: Query has no
+  // use for it and was only forwarding it.
+  const { openDeckPicker } = useNavigation();
+
   if (!wordData) return null;
 
   // Verbs get an extra block showing dictionary + polite (ます) forms; null otherwise.
@@ -49,14 +53,15 @@ export default function WordDetailCard({ wordData, onClose, onKanjiClick, onOpen
               : wordData.word}
           </h2>
 
-          {onOpenDeckPicker && (
-            <button
-              className="btn btn-dark flex-shrink-0 ms-2"
-              onClick={() => onOpenDeckPicker(wordData, 'word')}
-            >
-              Add to Deck
-            </button>
-          )}
+          {/* Always rendered now: the handler comes from context, so there is
+              no longer a case where it wasn't passed in. Signed-out users still
+              get the button — it sends them to the Decks tab to log in. */}
+          <button
+            className="btn btn-dark flex-shrink-0 ms-2"
+            onClick={() => openDeckPicker(wordData, 'word')}
+          >
+            Add to Deck
+          </button>
         </div>
 
         {wordData.reading && wordData.reading !== wordData.word && (
