@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useReducer } from 'react';
 import { calculateNextReview, getCardsForReview } from '../utils/srs';
+import { initStudySession, studySessionReducer } from '../reducers/studySession';
 import { useBackButton } from '../hooks/useBackButton';
 
 const RATINGS = [
@@ -10,14 +11,16 @@ const RATINGS = [
 ];
 
 export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
-  const [queue, setQueue] = useState(() => {
-    const due = getCardsForReview(deck.cards);
-    return shuffleArray([...due]);
-  });
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [sessionStats, setSessionStats] = useState({ again: 0, hard: 0, good: 0, easy: 0 });
-  const [done, setDone] = useState(false);
+  // All five pieces of session state live in one reducer, because rating a card
+  // changes four of them at once. The third argument is a lazy initializer: the
+  // second argument is passed to it, and it only runs on the first render — so
+  // the queue is shuffled once at mount, not on every re-render.
+  const [state, dispatch] = useReducer(
+    studySessionReducer,
+    shuffleArray([...getCardsForReview(deck.cards)]),
+    initStudySession
+  );
+  const { queue, currentIndex, isFlipped, sessionStats, done } = state;
 
   // Device Back exits the session (same as the Exit button) rather than
   // leaving the app mid-review.
@@ -26,34 +29,16 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
   const total = queue.length;
   const current = queue[currentIndex];
 
-  const handleFlip = () => setIsFlipped(true);
+  const handleFlip = () => dispatch({ type: 'FLIP' });
 
   const handleRate = (quality) => {
+    // The SM-2 math and the cloud write stay here: a reducer has to be pure, so
+    // it receives the already computed `metrics` rather than calculating them.
     const metrics = calculateNextReview(current, quality);
     onUpdateCardSRS(current.id, metrics);
 
     const ratingKey = RATINGS.find(r => r.quality === quality)?.label.toLowerCase();
-    setSessionStats(prev => ({ ...prev, [ratingKey]: prev[ratingKey] + 1 }));
-
-    if (quality === 0) {
-      // Put the card back at the end of the queue for re-review this session.
-      // Carry the freshly computed SRS state (`metrics`) onto the copy so the
-      // second rating builds on this one instead of the stale pre-review state
-      // — otherwise re-rating would silently overwrite this update.
-      setQueue(prev => {
-        const next = [...prev];
-        next.push({ ...current, ...metrics });
-        return next;
-      });
-    }
-
-    const nextIndex = currentIndex + 1;
-    if (nextIndex >= queue.length && quality !== 0) {
-      setDone(true);
-    } else {
-      setCurrentIndex(nextIndex);
-      setIsFlipped(false);
-    }
+    dispatch({ type: 'RATE', quality, ratingKey, metrics });
   };
 
   if (done) {
