@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { getCardsForReview } from '../utils/srs';
 import { useBackButton } from '../hooks/useBackButton';
+import { useNavigation } from '../context/navigationContext';
+import { useSelectedDeck } from '../hooks/useSelectedDeck';
 import CardDetailModal from './CardDetailModal';
 
 /**
@@ -17,25 +19,19 @@ const ELLIPSIS = {
   textOverflow: 'ellipsis',
 };
 
-export default function DeckDetail({
-  deck,
-  decks,
-  onBack,
-  onStudy,
-  onRemoveCard,
-  onUpdateCard,
-  onUpdateCardSRS,
-  onCopyCardToDeck,
-}) {
+export default function DeckDetail() {
+  const { backToList, studySelected } = useNavigation();
+  const deck = useSelectedDeck();
+
   // Track the card by ID, not the object: useDecks refetches after every
   // mutation and rebuilds `decks`, so a held card object would go stale the
   // moment the user edited or reset it.
   const [selectedCardId, setSelectedCardId] = useState(null);
 
   // Device Back returns to the deck list instead of leaving the app.
-  // Both hooks are called before the early return below so the hook order
+  // All hooks are called before the early return below so the hook order
   // stays stable across renders.
-  useBackButton(!!deck, onBack);
+  useBackButton(!!deck, backToList);
 
   if (!deck) return null;
 
@@ -66,7 +62,7 @@ export default function DeckDetail({
           crushing a long deck name on a phone. The title has a min-width so it
           is the element that forces the wrap. */}
       <div className="d-flex flex-wrap align-items-center gap-2 gap-md-3 mb-4">
-        <button className="btn btn-outline-secondary btn-sm touch-target" onClick={onBack}>
+        <button className="btn btn-outline-secondary btn-sm touch-target" onClick={backToList}>
           ← Back
         </button>
         <div className="flex-grow-1" style={{ minWidth: '10rem' }}>
@@ -77,7 +73,7 @@ export default function DeckDetail({
         </div>
         <button
           className="btn btn-dark flex-grow-1 flex-sm-grow-0"
-          onClick={onStudy}
+          onClick={studySelected}
           disabled={dueCards.length === 0}
         >
           {dueCards.length > 0 ? `Study Now (${dueCards.length})` : 'Nothing Due'}
@@ -161,11 +157,6 @@ export default function DeckDetail({
         <CardDetailModal
           card={selectedCard}
           deckId={deck.id}
-          decks={decks}
-          onUpdateCard={onUpdateCard}
-          onUpdateCardSRS={onUpdateCardSRS}
-          onCopyCardToDeck={onCopyCardToDeck}
-          onRemoveCard={onRemoveCard}
           onClose={() => setSelectedCardId(null)}
         />
       )}

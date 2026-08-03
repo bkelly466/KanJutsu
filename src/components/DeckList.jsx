@@ -1,27 +1,33 @@
 import { useState } from 'react';
 import { getCardsForReview } from '../utils/srs';
 import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR } from '../constants/categories';
+import { useNavigation } from '../context/navigationContext';
+import { useDecksContext } from '../context/decksContext';
 import CreateDeckModal from './CreateDeckModal';
 import Modal from './Modal';
 
-export default function DeckList({ decks, onCreateDeck, onUpdateDeck, onDeleteDeck, onSelectDeck, onStudyDeck }) {
+export default function DeckList() {
+  // Opening a deck and jumping into a session are navigation, not deck data.
+  const { selectDeck, studyDeck } = useNavigation();
+  const { decks, createDeck, updateDeck, deleteDeck } = useDecksContext();
+
   const [showCreate, setShowCreate] = useState(false);
   const [editingDeck, setEditingDeck] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const handleCreate = async (deckData) => {
-    await onCreateDeck(deckData);
+    await createDeck(deckData);
     // Close either way; any failure is shown via the error banner.
     setShowCreate(false);
   };
 
   const handleEdit = (deckData) => {
-    onUpdateDeck(editingDeck.id, deckData);
+    updateDeck(editingDeck.id, deckData);
     setEditingDeck(null);
   };
 
   const handleDelete = (deckId) => {
-    onDeleteDeck(deckId);
+    deleteDeck(deckId);
     setConfirmDelete(null);
   };
 
@@ -52,7 +58,7 @@ export default function DeckList({ decks, onCreateDeck, onUpdateDeck, onDeleteDe
             return (
               <div key={deck.id} className="col-12 col-md-6">
                 <div className="card shadow-sm h-100" style={{ cursor: 'pointer' }}>
-                  <div className="card-body" onClick={() => onSelectDeck(deck.id)}>
+                  <div className="card-body" onClick={() => selectDeck(deck.id)}>
                     <div className="d-flex justify-content-between align-items-start mb-2">
                       <h5 className="card-title fw-bold mb-0">{deck.name}</h5>
                       {deck.category?.value && (
@@ -88,7 +94,7 @@ export default function DeckList({ decks, onCreateDeck, onUpdateDeck, onDeleteDe
                     <button
                       className="btn btn-dark btn-sm flex-grow-1"
                       onClick={() =>
-                        dueCount > 0 ? onStudyDeck(deck.id) : onSelectDeck(deck.id)
+                        dueCount > 0 ? studyDeck(deck.id) : selectDeck(deck.id)
                       }
                     >
                       {dueCount > 0 ? `Study (${dueCount})` : 'View Deck'}

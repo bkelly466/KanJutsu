@@ -1,6 +1,10 @@
-import { useState } from 'react';
+import { useReducer } from 'react';
 import { calculateNextReview, getCardsForReview } from '../utils/srs';
+import { initStudySession, studySessionReducer } from '../reducers/studySession';
 import { useBackButton } from '../hooks/useBackButton';
+import { useNavigation } from '../context/navigationContext';
+import { useDecksContext } from '../context/decksContext';
+import { useSelectedDeck } from '../hooks/useSelectedDeck';
 
 const RATINGS = [
   { quality: 0, label: 'Again', color: '#dc3545', hint: 'Complete blackout' },
@@ -9,51 +13,45 @@ const RATINGS = [
   { quality: 5, label: 'Easy',  color: '#0d6efd', hint: 'Perfect recall' },
 ];
 
-export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
-  const [queue, setQueue] = useState(() => {
-    const due = getCardsForReview(deck.cards);
-    return shuffleArray([...due]);
-  });
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [sessionStats, setSessionStats] = useState({ again: 0, hard: 0, good: 0, easy: 0 });
-  const [done, setDone] = useState(false);
+export default function StudySession() {
+  // Leaving a session returns to that deck's detail view.
+  const { backToDetail } = useNavigation();
+  const { updateCardSRS } = useDecksContext();
+  const deck = useSelectedDeck();
+
+  // All five pieces of session state live in one reducer, because rating a card
+  // changes four of them at once.
+  //
+  // Only the THIRD argument is lazy. React passes the second argument to it and
+  // runs it once, on the first render — but the second argument is an ordinary
+  // expression, so JavaScript still evaluates it on every render even though
+  // React ignores the result. Building the queue there would therefore re-run a
+  // full shuffle on every flip and every rating. Passing `deck` (already in hand)
+  // and doing the work inside the initializer keeps it genuinely once-only.
+  const [state, dispatch] = useReducer(
+    studySessionReducer,
+    deck,
+    (d) => initStudySession(shuffleArray([...getCardsForReview(d.cards)]))
+  );
+  const { queue, currentIndex, isFlipped, sessionStats, done } = state;
 
   // Device Back exits the session (same as the Exit button) rather than
   // leaving the app mid-review.
-  useBackButton(true, onBack);
+  useBackButton(true, backToDetail);
 
   const total = queue.length;
   const current = queue[currentIndex];
 
-  const handleFlip = () => setIsFlipped(true);
+  const handleFlip = () => dispatch({ type: 'FLIP' });
 
   const handleRate = (quality) => {
+    // The SM-2 math and the cloud write stay here: a reducer has to be pure, so
+    // it receives the already computed `metrics` rather than calculating them.
     const metrics = calculateNextReview(current, quality);
-    onUpdateCardSRS(current.id, metrics);
+    updateCardSRS(current.id, metrics);
 
     const ratingKey = RATINGS.find(r => r.quality === quality)?.label.toLowerCase();
-    setSessionStats(prev => ({ ...prev, [ratingKey]: prev[ratingKey] + 1 }));
-
-    if (quality === 0) {
-      // Put the card back at the end of the queue for re-review this session.
-      // Carry the freshly computed SRS state (`metrics`) onto the copy so the
-      // second rating builds on this one instead of the stale pre-review state
-      // — otherwise re-rating would silently overwrite this update.
-      setQueue(prev => {
-        const next = [...prev];
-        next.push({ ...current, ...metrics });
-        return next;
-      });
-    }
-
-    const nextIndex = currentIndex + 1;
-    if (nextIndex >= queue.length && quality !== 0) {
-      setDone(true);
-    } else {
-      setCurrentIndex(nextIndex);
-      setIsFlipped(false);
-    }
+    dispatch({ type: 'RATE', quality, ratingKey, metrics });
   };
 
   if (done) {
@@ -95,7 +93,7 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
           ))}
         </div>
 
-        <button className="btn btn-dark mt-3" onClick={onBack}>
+        <button className="btn btn-dark mt-3" onClick={backToDetail}>
           Back to Deck
         </button>
       </div>
@@ -106,7 +104,7 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
     return (
       <div className="text-center py-5">
         <p className="text-muted">No cards due for review.</p>
-        <button className="btn btn-outline-dark mt-2" onClick={onBack}>Back</button>
+        <button className="btn btn-outline-dark mt-2" onClick={backToDetail}>Back</button>
       </div>
     );
   }
@@ -120,7 +118,7 @@ export default function StudySession({ deck, onUpdateCardSRS, onBack }) {
     <div>
       {/* Header */}
       <div className="d-flex align-items-center gap-3 mb-3">
-        <button className="btn btn-outline-secondary btn-sm" onClick={onBack}>
+        <button className="btn btn-outline-secondary btn-sm" onClick={backToDetail}>
           ← Exit
         </button>
         <div className="flex-grow-1">
