@@ -29,7 +29,7 @@ export default function DeckDetail() {
   const [selectedCardId, setSelectedCardId] = useState(null);
 
   // Device Back returns to the deck list instead of leaving the app.
-  // Both hooks are called before the early return below so the hook order
+  // All hooks are called before the early return below so the hook order
   // stays stable across renders.
   useBackButton(!!deck, backToList);
 

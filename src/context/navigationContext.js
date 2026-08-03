@@ -6,10 +6,14 @@ import { createContext, useContext } from 'react';
  * Split out from NavigationProvider.jsx on purpose: Vite's Fast Refresh can only
  * hot-reload a file that exports *only* components, so a file exporting both a
  * provider component and a hook breaks it (the `react-refresh/only-export-components`
- * lint rule). The convention in this folder is therefore:
+ * lint rule). The convention across the app is therefore:
  *
- *   <name>Context.js   - createContext + the use<Name>() hook   (no JSX)
- *   <name>Provider.jsx - the provider component
+ *   src/context/<name>Context.js   - createContext + the use<Name>() hook (no JSX)
+ *   src/context/<name>Provider.jsx - the provider component
+ *   src/reducers/<name>.js         - the pure reducer, if it has one
+ *
+ * Reducers live in src/reducers/ whether or not a context uses them, so all the
+ * pure, unit-testable state logic has one home.
  */
 export const NavigationContext = createContext(null);
 

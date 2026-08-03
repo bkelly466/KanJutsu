@@ -20,8 +20,14 @@ export const initialNavState = {
 
 export function navigationReducer(state, action) {
   switch (action.type) {
+    // Returning the SAME object when nothing changes matters here in a way it
+    // doesn't for useState. useState bails out when you set an equal value;
+    // useReducer only bails out when the reducer returns the identical object.
+    // Without this, tapping the tab you're already on re-renders the whole app.
     case 'SET_TAB':
-      return { ...state, activeTab: action.tab };
+      return state.activeTab === action.tab
+        ? state
+        : { ...state, activeTab: action.tab };
 
     // Open a deck from the list.
     case 'SELECT_DECK':
@@ -42,10 +48,17 @@ export function navigationReducer(state, action) {
     case 'BACK_TO_DETAIL':
       return { ...state, decksView: 'detail' };
 
+    // "The user asked to add this item to a deck" — not "open the picker",
+    // because there are two valid answers. Adding a card requires login, so a
+    // signed-out user is sent to the Decks tab, which is where the login form
+    // lives. `authed` arrives as action data, which keeps this function pure
+    // while still letting the rule be tested.
+    //
     // Note `itemType`, not `type`: a card's type is 'kanji' | 'word', and this
     // object's own `type` is already taken by the action name. Naming both
     // `type` would silently shadow one with the other.
-    case 'OPEN_DECK_PICKER':
+    case 'REQUEST_ADD_TO_DECK':
+      if (!action.authed) return { ...state, activeTab: 'decks' };
       return {
         ...state,
         deckPickerTarget: { item: action.item, type: action.itemType },

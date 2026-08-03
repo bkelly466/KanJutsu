@@ -1,7 +1,7 @@
 import { useMemo, useReducer } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { NavigationContext } from './navigationContext';
-import { initialNavState, navigationReducer } from './navigationReducer';
+import { initialNavState, navigationReducer } from '../reducers/navigation';
 
 /**
  * Shares "where the app is pointed" with any component that needs it, without
@@ -36,16 +36,11 @@ export function NavigationProvider({ children }) {
       closeDeckPicker: () => dispatch({ type: 'CLOSE_DECK_PICKER' }),
 
       // `itemType` defaults to 'kanji' so the kanji detail card can keep calling
-      // this with a single argument. Adding cards requires login, so a signed-out
-      // user is sent to the Decks tab instead, which is where the login form is.
-      //
-      // The auth check lives here rather than in the reducer deliberately: it is
-      // navigation policy, and keeping it out of the reducer leaves that a pure
-      // function with no dependency on auth.
+      // this with a single argument. Whether this opens the picker or redirects
+      // a signed-out user to the login form is decided by the reducer — `authed`
+      // is passed as plain action data, so that rule stays pure and testable.
       openDeckPicker: (item, itemType = 'kanji') =>
-        authed
-          ? dispatch({ type: 'OPEN_DECK_PICKER', item, itemType })
-          : dispatch({ type: 'SET_TAB', tab: 'decks' }),
+        dispatch({ type: 'REQUEST_ADD_TO_DECK', item, itemType, authed }),
     }),
     [nav, authed]
   );

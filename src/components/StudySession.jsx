@@ -20,13 +20,18 @@ export default function StudySession() {
   const deck = useSelectedDeck();
 
   // All five pieces of session state live in one reducer, because rating a card
-  // changes four of them at once. The third argument is a lazy initializer: the
-  // second argument is passed to it, and it only runs on the first render — so
-  // the queue is shuffled once at mount, not on every re-render.
+  // changes four of them at once.
+  //
+  // Only the THIRD argument is lazy. React passes the second argument to it and
+  // runs it once, on the first render — but the second argument is an ordinary
+  // expression, so JavaScript still evaluates it on every render even though
+  // React ignores the result. Building the queue there would therefore re-run a
+  // full shuffle on every flip and every rating. Passing `deck` (already in hand)
+  // and doing the work inside the initializer keeps it genuinely once-only.
   const [state, dispatch] = useReducer(
     studySessionReducer,
-    shuffleArray([...getCardsForReview(deck.cards)]),
-    initStudySession
+    deck,
+    (d) => initStudySession(shuffleArray([...getCardsForReview(d.cards)]))
   );
   const { queue, currentIndex, isFlipped, sessionStats, done } = state;
 

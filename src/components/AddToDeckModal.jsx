@@ -10,14 +10,19 @@ import { useDecksContext } from '../context/decksContext';
 // the picker is opened from the dictionary but rendered up at the app level.
 export default function AddToDeckModal() {
   const { deckPickerTarget, closeDeckPicker } = useNavigation();
-  const { item, type = 'kanji' } = deckPickerTarget;
-
   const { decks, addCardToDeck, createDeck } = useDecksContext();
 
   const [showCreate, setShowCreate] = useState(false);
   const [addedDeckIds, setAddedDeckIds] = useState(new Set());
 
+  // App only renders this when a target exists, but guard anyway — and do it
+  // AFTER every hook, so the component can never bail out mid-hook-list. Reading
+  // `deckPickerTarget.item` above the hooks would throw between two of them,
+  // which is a far more confusing failure than rendering nothing.
+  if (!deckPickerTarget) return null;
+
   // Display + dedupe values that differ by item type.
+  const { item, type = 'kanji' } = deckPickerTarget;
   const key = sourceKey(item, type);
   const title = type === 'word' ? item.word : item.kanji;
   const subtitle = (item.meanings || []).slice(0, 3).join(', ');
