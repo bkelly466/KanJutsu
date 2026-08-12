@@ -179,7 +179,7 @@ search for a non-word usually returns entries that merely start with the string.
 | 動詞 (verb) | 25/25 — 100% |
 | 形容詞 (adjective) | 5/5 — 100% |
 | 助動詞 (auxiliary) | 3/3 — 100% |
-| 連体詞, 副詞 | 3/3 — 100% |
+| 連体詞, 副詞 | 3/3 — 100% (merged here; the script prints 2/2 and 1/1) |
 | 名詞 (noun) | 48/51 — 94.1% |
 | 助詞 (particle) | 13/14 — 92.9% |
 
@@ -192,12 +192,13 @@ dictionary Entry is the claim ADR-0003 was written to make.
 Reading the list matters more than the percentage, and four of the five are
 softer than the number suggests:
 
-- **勉強する, 出席する** (2 lemmas, 2 Tokens) — the サ変 merge composes a lookup
+- **勉強する, 出席する** (2 lemmas, 3 Tokens — 勉強 appears in two sentences) —
+  the サ変 merge composes a lookup
   string (`head.surface + する`) that Jisho files under the bare noun. Searching
   勉強する returns 勉強 as its **top** result, tagged as a suru verb, so the
   learner who taps 勉強し sees the right entry. A miss by this script's strict
   definition; not a miss on screen.
-- **ぐらい** (1 lemma, 2 Tokens) — Jisho's headword is くらい, of which ぐらい is
+- **ぐらい** (1 lemma, 1 Token) — Jisho's headword is くらい, of which ぐらい is
   a variant reading. Top result is again the correct entry.
 - **東京駅** (1 lemma, 1 Token) — **the only true dead end in the corpus.** Jisho
   has no 東京駅 entry at all, so the overlay says there is none. This is the
@@ -234,6 +235,12 @@ pattern `searchWords` uses for ADR-0002's deinflection candidates — was tested
 at 0/20 failures. The limit is on sustained rate, not concurrency, so it
 constrains bulk tooling like this script rather than a person tapping words.
 Anything that walks a corpus in future should pace itself the same way.
+
+Those spacing figures came from a **throwaway probe run by hand on 2026-08-12**,
+not from committed code — don't go looking for a script. What is committed is
+the consequence: `PAUSE_MS`, the retry, and the loud reporting of any lemma
+still excluded, which is what stops this class of error inflating the number
+again.
 
 ## Consequences
 

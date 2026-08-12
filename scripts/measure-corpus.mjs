@@ -14,15 +14,22 @@
  * Run through vite-node rather than plain node, because it exercises the REAL
  * app modules — `analyzeSentence` and `lookUpToken`, extensionless imports,
  * `amplify_outputs.json` and `import.meta.env` and all. A reimplementation here
- * would measure this script rather than the app. (vite-node ships with vitest,
- * already a devDependency; `npm run measure-corpus` also passes the Jisho proxy
- * URL through as VITE_JISHO_PROXY_URL, which is how the app gets it at build.)
+ * would measure this script rather than the app.
+ *
+ * `npm run measure-corpus` passes the Jisho proxy URL in as VITE_JISHO_PROXY_URL
+ * — the same variable amplify.yml sets at build — because `jishoProxy.js` reads
+ * it at import time, so it has to exist before any import runs. That makes the
+ * npm script POSIX-shell-only (fine on macOS/Linux, not on cmd.exe); if the
+ * outputs file is missing it substitutes an empty string and the guard below
+ * explains what to do.
  *
  * Sentences come from the recorded fixtures rather than a list of their own, so
  * the measured corpus and the tested corpus cannot drift apart. Only the
  * sentence strings are used — the analyzer is called live, as the point is to
  * measure the live path end to end.
  */
+
+import { readFileSync } from 'node:fs';
 
 import { CORPUS } from '../src/api/sentence.fixtures.js';
 import { analyzeSentence } from '../src/api/sentence.js';
@@ -56,11 +63,30 @@ const RETRY_PAUSE_MS = 2000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-if (JISHO_PROXY.startsWith('/')) {
+/* -------------------------------------------------------------------------- */
+/* Guards — a measurement that cannot measure must fail, not report 0.0%      */
+/* -------------------------------------------------------------------------- */
+
+// Tested as "is a real URL" rather than "isn't the dev path", because the npm
+// script substitutes an empty string when amplify_outputs.json is missing the
+// key, and `fetch('?keyword=…')` on a relative string throws a stack trace
+// instead of saying what's wrong.
+if (!/^https?:\/\//.test(JISHO_PROXY)) {
   console.error(
-    'JISHO_PROXY is the dev-server path, which a Node process cannot fetch.\n' +
-      'Run this via `npm run measure-corpus`, which passes the deployed proxy URL in.',
+    'No usable Jisho proxy URL.\n' +
+      'Run this via `npm run measure-corpus` (it passes the deployed URL in),\n' +
+      'with `npx ampx sandbox` running so amplify_outputs.json exists.',
   );
+  process.exit(1);
+}
+
+// The analyzer URL is read by src/api/sentence.js, which quietly falls back to
+// '' — so check it here the way record-corpus.mjs does. Without this the run
+// dies on the first sentence with "check your connection", copy written for a
+// user on a flaky phone, which points a developer at entirely the wrong thing.
+const outputs = JSON.parse(readFileSync(new URL('../amplify_outputs.json', import.meta.url)));
+if (!outputs.custom?.sentenceAnalyzerUrl) {
+  console.error('No sentenceAnalyzerUrl in amplify_outputs.json — run `npx ampx sandbox` first.');
   process.exit(1);
 }
 
@@ -109,6 +135,9 @@ for (const { sentence } of CORPUS) {
       // quietly inflates the headline number, which is the one way this
       // measurement could lie.
       for (let attempt = 0; attempt < 2; attempt += 1) {
+        // Reset per attempt: a first-attempt error message must not survive
+        // into a second attempt that succeeded.
+        topResult = '';
         try {
           const entries = await lookUpToken(lemma);
           if (entries.length === 0) status = 'none';
@@ -125,6 +154,11 @@ for (const { sentence } of CORPUS) {
         }
       }
 
+      // `pos` is the FIRST occurrence's tag. Verified against this corpus: no
+      // lemma appears under two different parts of speech, so the breakdown
+      // below is unambiguous. A lemma like よう (名詞/非自立 here, plausibly
+      // 助動詞 elsewhere) would be filed under whichever came first — re-check
+      // if the corpus grows.
       record = { status, pos: token.pos, topResult, surfaces: new Set(), sentences: new Set() };
       lemmas.set(lemma, record);
       await sleep(PAUSE_MS);
@@ -172,7 +206,8 @@ console.log(`  nothing at all     ${count(lemmasMeasured, 'none')}`);
 const errors = [...lemmas.entries()].filter(([, r]) => r.status === 'error');
 if (errors.length > 0) {
   // Loud, because an excluded lemma is the one thing that can inflate the
-  // headline rate. If this list isn't empty, the number below is provisional.
+  // headline rate. If this list isn't empty, the numbers ABOVE are provisional
+  // — and the exit code below is non-zero so it can't be missed.
   console.log(`\n  ${errors.length} lookup(s) errored TWICE and are excluded from both rates:`);
   for (const [lemma, record] of errors) {
     console.log(`    ${lemma} — ${record.topResult}`);
@@ -195,19 +230,29 @@ for (const [pos, { total, exact }] of [...byPos.entries()].sort((a, b) => b[1].t
   console.log(`  ${(pos || '(none)').padEnd(6)} ${String(exact).padStart(3)}/${String(total).padEnd(3)}  ${pct(exact, total).padStart(5)}%`);
 }
 
-const unresolved = lemmaRecords
-  .filter((r) => r.status === 'none' || r.status === 'partial')
-  .sort((a, b) => a.pos.localeCompare(b.pos));
+const unresolved = [...lemmas.entries()]
+  .filter(([, record]) => record.status === 'none' || record.status === 'partial')
+  .sort(([, a], [, b]) => (a.pos || '').localeCompare(b.pos || ''));
 
 if (unresolved.length > 0) {
   console.log('\nEvery lemma that did not resolve — read this list, do not just take the number:');
-  for (const [lemma, record] of lemmas) {
-    if (record.status !== 'none' && record.status !== 'partial') continue;
+  for (const [lemma, record] of unresolved) {
+    // The Token count is printed so the ADR write-up can be TRANSCRIBED rather
+    // than reconstructed by hand. Getting it wrong by hand is not theoretical:
+    // the first draft of ADR-0003's miss list transposed two of these counts,
+    // and code review caught it.
+    const occurrences = tokenRecords.filter((t) => t.lemma === lemma).length;
     const surfaces = [...record.surfaces].join(', ');
     const detail = record.status === 'partial' ? `top result ${record.topResult}` : 'no results';
-    console.log(`  ${lemma}  [${record.pos || '?'}]  as: ${surfaces}  — ${detail}`);
-    console.log(`      in: ${[...record.sentences][0]}`);
+    console.log(
+      `  ${lemma}  [${record.pos || '?'}]  ${occurrences} Token(s), as: ${surfaces}  — ${detail}`,
+    );
+    console.log(`      in: ${[...record.sentences].join(' / ')}`);
   }
 }
 
 console.log('\nRecord the token-weighted figure and the date in ADR-0003.');
+
+// Non-zero when any lemma was excluded, so a run that couldn't measure what it
+// set out to measure can't be mistaken for a clean result.
+process.exit(errors.length > 0 ? 1 : 0);
