@@ -13,22 +13,36 @@ export function useWordSearch() {
   const [results, setResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  // Set when the search that produced `results` used a different word than the
+  // one typed — e.g. the user searched 飲んだ and we looked up 飲む. null
+  // otherwise. See src/api/words.js.
+  const [resolvedFrom, setResolvedFrom] = useState(null);
 
-  const search = async (query) => {
+  /**
+   * Run a search. Pass `{ allowDeinflection: false }` to look the query up
+   * exactly as typed, skipping the 飲んだ → 飲む fallback — that's what the
+   * "search X instead" link in the results banner uses.
+   */
+  const search = async (query, { allowDeinflection = true } = {}) => {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) {
       setError('Please enter a word to look up.');
       setResults([]);
+      setResolvedFrom(null);
       return;
     }
 
     setError('');
     setResults([]);
+    setResolvedFrom(null);
     setIsLoading(true);
 
     try {
-      const words = await searchWords(trimmedQuery);
+      const { results: words, resolvedFrom: resolved } = await searchWords(trimmedQuery, {
+        allowDeinflection,
+      });
       setResults(words);
+      setResolvedFrom(resolved);
       if (words.length === 0) {
         setError(`No words found for "${trimmedQuery}".`);
       }
@@ -39,5 +53,5 @@ export function useWordSearch() {
     }
   };
 
-  return { results, isLoading, error, search };
+  return { results, isLoading, error, resolvedFrom, search };
 }

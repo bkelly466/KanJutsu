@@ -12,6 +12,7 @@
  */
 
 import { JISHO_PROXY } from './jishoProxy';
+import { deinflect } from '../utils/deinflect';
 
 // Cap how many results we render so a broad query (e.g. "time") doesn't dump a
 // hundred entries onto the screen. Jisho returns the most relevant first.
@@ -66,22 +67,124 @@ export function normalizeWord(entry) {
 }
 
 /**
- * Search the Jisho word dictionary for `query` (English, kana, or kanji).
- * Returns an array of normalised word entries (possibly empty).
- * Throws on network/HTTP failure so the hook can surface an error message.
+ * One round-trip to Jisho for a single keyword, normalised and capped.
+ *
+ * Throws on network/HTTP failure. The thrown error's `message` is user-facing
+ * copy; the technical detail is attached as `error.cause` for debugging
+ * (inspect it in devtools).
  */
-export async function searchWords(query) {
-  const q = query.trim();
-  if (!q) return [];
-
-  const response = await fetch(`${JISHO_PROXY}?keyword=${encodeURIComponent(q)}`);
-  if (!response.ok) {
-    throw new Error('Word lookup failed. Please try again.');
+async function fetchEntries(keyword) {
+  let response;
+  try {
+    response = await fetch(`${JISHO_PROXY}?keyword=${encodeURIComponent(keyword)}`);
+  } catch (cause) {
+    // Network-level failure: offline, DNS, the proxy being unreachable.
+    // `cause` keeps the original error attached for debugging without putting
+    // its text in front of the user.
+    throw new Error('Word lookup failed. Please check your connection and try again.', { cause });
   }
 
-  const json = await response.json();
+  if (!response.ok) {
+    throw new Error('Word lookup failed. Please try again.', {
+      cause: new Error(`Jisho proxy returned ${response.status} for "${keyword}"`),
+    });
+  }
+
+  let json;
+  try {
+    json = await response.json();
+  } catch (cause) {
+    // A proxy can return an HTML error page with a 200. Without this the user
+    // would see a raw "Unexpected token '<'" in the results area.
+    throw new Error('Word lookup failed. Please try again.', { cause });
+  }
+
   return (json.data || [])
     .map(normalizeWord)
     .filter(Boolean)
     .slice(0, MAX_WORD_RESULTS);
+}
+
+/**
+ * Search the Jisho word dictionary for `query` (English, kana, or kanji).
+ *
+ * Returns `{ results, resolvedFrom }`:
+ *   - `results`      normalised entries, possibly empty
+ *   - `resolvedFrom` `{ surfaceForm, headword }` when we searched something
+ *                    other than what the user typed, otherwise null. The UI
+ *                    uses this to tell the user what happened.
+ *
+ * Jisho normally deinflects for us, but gives up when a longer entry begins
+ * with what was typed — 飲んだ returns 飲んだくれ and 飲む is absent from the
+ * results entirely, so there's nothing to re-rank. In that one case we derive
+ * candidate headwords locally and search those instead.
+ * See docs/adr/0002-deinflection-fallback.md.
+ *
+ * Throws on network/HTTP failure of the *first* request only; a failed retry
+ * falls back to the original results rather than losing them.
+ *
+ * Pass `{ allowDeinflection: false }` to search the string exactly as given.
+ * The UI uses this for the "search X instead" escape hatch, so a substitution
+ * the user didn't want is always one tap away from being undone.
+ */
+export async function searchWords(query, { allowDeinflection = true } = {}) {
+  const q = query.trim();
+  if (!q) return { results: [], resolvedFrom: null };
+
+  const results = await fetchEntries(q);
+  if (!allowDeinflection) return { results, resolvedFrom: null };
+
+  // No candidates means this doesn't look like a た/て form, which is the
+  // common case — and is what stops an ordinary search costing two requests.
+  const candidates = deinflect(q);
+  if (candidates.length === 0) return { results, resolvedFrom: null };
+
+  // Jisho returned the exact string that was typed, so it found a real entry
+  // for it. 決して, として and 果たして are headwords in their own right that
+  // merely *look* like て-forms — deinflecting them would replace a correct
+  // result with a wrong one.
+  if (results.some((entry) => entry.word === q || entry.reading === q)) {
+    return { results, resolvedFrom: null };
+  }
+
+  // Jisho already found the headword by itself (読んだ → 読む). Nothing to fix.
+  // Readings count too, so kana input (のんだ → 飲む/のむ) is recognised.
+  const headwords = new Set(results.flatMap((entry) => [entry.word, entry.reading]));
+  if (candidates.some((candidate) => headwords.has(candidate))) {
+    return { results, resolvedFrom: null };
+  }
+
+  // Only the dictionary can say which candidate is a real word, so try them
+  // all at once — one round-trip of latency rather than one per candidate.
+  const attempts = await Promise.all(
+    candidates.map((candidate) =>
+      fetchEntries(candidate)
+        .then((entries) => ({
+          candidate,
+          entries,
+          // Match on the reading too: a kana candidate (のむ) finds an entry
+          // whose `word` is the kanji form (飲む).
+          match: entries.find(
+            (entry) => entry.word === candidate || entry.reading === candidate,
+          ),
+        }))
+        // A failed retry must not sink the results we already have.
+        .catch(() => null),
+    ),
+  );
+
+  const resolved = attempts.filter((attempt) => attempt?.match);
+  if (resolved.length === 0) return { results, resolvedFrom: null };
+
+  // Prefer a common word. Array.sort is stable, so candidates that tie keep
+  // deinflect()'s priority order — which is what puts 行く ahead of 行う.
+  resolved.sort((a, b) => Number(b.match.isCommon) - Number(a.match.isCommon));
+  const winner = resolved[0];
+
+  return {
+    results: winner.entries,
+    // Show the entry's own headword, not the candidate we guessed — searching
+    // のんだ should say "飲む", not "のむ".
+    resolvedFrom: { surfaceForm: q, headword: winner.match.word },
+  };
 }
