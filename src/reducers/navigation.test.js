@@ -118,10 +118,38 @@ describe('navigationReducer', () => {
       expect(next.activeTab).toBe('dictionary');
     });
 
+    it('stays on the Sentence tab too — the picker opens over the breakdown', () => {
+      // The Sentence tab's Token overlay adds Entries the same way (issue #22).
+      // Switching tabs here would cost the user their analysis: App.jsx unmounts
+      // whichever tab isn't active, and a Sentence is deliberately not persisted
+      // (ADR-0003). The signed-out branch below accepts that cost knowingly.
+      const onSentence = { ...initialNavState, activeTab: 'sentence' };
+      const next = navigationReducer(onSentence, requestAdd({ word: '行く' }, 'word', true));
+
+      expect(next.activeTab).toBe('sentence');
+      expect(next.deckPickerTarget).toEqual({ item: { word: '行く' }, type: 'word' });
+    });
+
     it('sends a signed-out user to the Decks tab instead of opening the picker', () => {
       // Adding a card requires login, and the Decks tab is where the login form
       // lives. This is the one piece of policy the redirect exists for.
       const next = navigationReducer(initialNavState, requestAdd({ id: 'k1' }, 'kanji', false));
+
+      expect(next.activeTab).toBe('decks');
+      expect(next.deckPickerTarget).toBeNull();
+    });
+
+    it('redirects a signed-out user from the Sentence tab as well', () => {
+      // Same rule, reached from the Token overlay. Worth asserting separately:
+      // the redirect is the acceptance criterion #22 is judged on, and it holds
+      // because the rule keys off `authed`, never off which tab asked.
+      //
+      // The cost is real and accepted — this unmounts the Sentence tab, so the
+      // pasted text and its analysis are gone by the time the user has signed
+      // in. ADR-0003 makes a Sentence ephemeral by design, and the Dictionary
+      // tab loses its search results to the same redirect.
+      const onSentence = { ...initialNavState, activeTab: 'sentence' };
+      const next = navigationReducer(onSentence, requestAdd({ word: '行く' }, 'word', false));
 
       expect(next.activeTab).toBe('decks');
       expect(next.deckPickerTarget).toBeNull();
