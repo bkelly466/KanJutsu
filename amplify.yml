@@ -30,6 +30,16 @@ frontend:
         # shipping a bundle that falls back to /api/jishoapi (which 404s in
         # production and breaks every Jisho lookup).
         - test -n "$VITE_JISHO_PROXY_URL" || (echo "ERROR - jishoProxyUrl missing from amplify_outputs.json, backend deploy may have failed" && exit 1)
+        # The sentence analyzer's Function URL is NOT exported as a VITE_ var:
+        # src/api/sentence.js imports amplify_outputs.json directly. Unlike the
+        # Jisho proxy it has no local fallback (there's no dev-server route that
+        # can run a 12.5 MB dictionary), so an env var would only mean
+        # hand-copying sandbox URLs around. See docs/adr/0003.
+        #
+        # We still check the key is present, for the same reason as above: if the
+        # backend deploy half-failed we want a red build, not a Sentence tab that
+        # silently errors on every paste in production.
+        - test -n "$(node -e "process.stdout.write((require('./amplify_outputs.json').custom || {}).sentenceAnalyzerUrl || '')")" || (echo "ERROR - sentenceAnalyzerUrl missing from amplify_outputs.json, backend deploy may have failed" && exit 1)
     build:
       commands:
         - npm run build

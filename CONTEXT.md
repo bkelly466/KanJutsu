@@ -34,6 +34,27 @@ Which conjugation pattern a verb Entry follows — ichidan, godan, suru or kuru.
 Determines how its forms are built.
 _Avoid_: verb type, conjugation group
 
+### Sentence analysis
+
+**Sentence**:
+A stretch of Japanese text the user supplies to be explored one Token at a
+time. It is not a Card and carries no schedule.
+_Avoid_: text, passage, input, phrase
+
+**Morpheme**:
+The analyzer's raw unit — the smallest piece IPADIC splits text into, which is
+often *not* a word you can look up. 行きました comes back as three Morphemes,
+行き + まし + た, and 行き has no dictionary entry. Morphemes are an
+implementation detail of the analyzer; one or more of them merge into a Token.
+_Avoid_: token (a Morpheme is smaller), part
+
+**Token**:
+A contiguous span of a Sentence offered to the user as a single tap target,
+built by merging one or more Morphemes. Its text is a Surface form; tapping it
+looks up an Entry, which may not exist.
+_Avoid_: word, segment, chunk — and don't call a Token a Morpheme: the whole
+point of the merge step is that they are different things.
+
 ### Study
 
 **Card**:

@@ -27,6 +27,17 @@ describe('navigationReducer', () => {
       expect(next.selectedDeckId).toBe('d1');
     });
 
+    it('switches to the Sentence tab, leaving the Decks view alone', () => {
+      // The third tab is public like the Dictionary, and shares the same
+      // transition — SET_TAB carries the value, so the reducer needs no new case.
+      const open = navigationReducer(initialNavState, { type: 'SELECT_DECK', deckId: 'd1' });
+      const next = navigationReducer(open, { type: 'SET_TAB', tab: 'sentence' });
+
+      expect(next.activeTab).toBe('sentence');
+      expect(next.decksView).toBe('detail');
+      expect(next.selectedDeckId).toBe('d1');
+    });
+
     it('returns the identical state when the tab is already active', () => {
       // useReducer only skips a re-render when the reducer returns the SAME
       // object, so without this tapping the active tab re-renders the whole app.
