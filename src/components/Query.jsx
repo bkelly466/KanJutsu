@@ -14,13 +14,21 @@ export default function Query() {
   // When set, the kanji explorer overlay is open on this character.
   const [kanjiModalChar, setKanjiModalChar] = useState(null);
 
-  const { results, isLoading, error, search } = useWordSearch();
+  const { results, isLoading, error, resolvedFrom, search } = useWordSearch();
   const selectedWordData = results.find((w) => w.id === expandedWordId);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setExpandedWordId(null);
     search(query);
+  };
+
+  // "Search 飲んだ instead" — re-run the search literally, without the
+  // conjugated-form fallback, so a substitution can always be undone.
+  const handleExactSearch = (surfaceForm) => {
+    setExpandedWordId(null);
+    setQuery(surfaceForm);
+    search(surfaceForm, { allowDeinflection: false });
   };
 
   // Tapping a kanji — in a word's headword or inside the overlay's common-words
@@ -62,6 +70,30 @@ export default function Query() {
           // `.container`, and nesting them double-applies Bootstrap's gutter
           // padding, which visibly narrows results on a phone.
           <div>
+            {/* When the typed word was a conjugated form, say so rather than
+                silently swapping it. The dictionary form is the one a learner
+                needs to memorise, so showing it is part of the answer. */}
+            {resolvedFrom && (
+              <div className="text-center py-2 mb-2">
+                <p className="text-muted mb-1">
+                  Showing results for <strong lang="ja">{resolvedFrom.headword}</strong>
+                  {' — '}
+                  <span lang="ja">{resolvedFrom.surfaceForm}</span> may be a form of it.
+                </p>
+                {/* The escape hatch, on its own line directly under the hedge.
+                    We can't guarantee every substitution is right — Japanese has
+                    plenty of words that merely look like conjugations — so
+                    getting back to the literal search is always one tap away. */}
+                <button
+                  type="button"
+                  className="btn btn-link p-0"
+                  onClick={() => handleExactSearch(resolvedFrom.surfaceForm)}
+                >
+                  Search <span lang="ja">{resolvedFrom.surfaceForm}</span> instead
+                </button>
+              </div>
+            )}
+
             {/* Detail card sits above the list when a word is selected. */}
             {expandedWordId && (
               <WordDetailCard

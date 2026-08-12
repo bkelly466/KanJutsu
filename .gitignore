@@ -12,6 +12,16 @@ dist
 dist-ssr
 *.local
 
+# Environment variables — never committed (see CLAUDE.md).
+# Note VITE_-prefixed values are baked into the public bundle, so they are
+# not secret; this protects anything else that ends up in these files.
+.env
+.env.*
+!.env.example
+
+# Vitest coverage output
+coverage
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -28,10 +38,10 @@ dist-ssr
 amplify_outputs*
 amplifyconfiguration*
 
-# Claude — assistant config, agent definitions, and project instructions.
-# Kept local (they stay on disk), not committed to the repo.
-.claude/
-CLAUDE.md
+# Claude — agent definitions and project instructions are committed, so the
+# repo shows how the project is built. Only the per-machine permissions file
+# is kept local: it records absolute paths from one developer's disk.
+.claude/settings.local.json
 
 # HANDOFF.md is a local resume-note file, edited directly on main (see CLAUDE.md).
 # Kept out of the repo so updating it doesn't trigger a build/deploy.
