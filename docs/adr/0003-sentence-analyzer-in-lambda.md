@@ -158,12 +158,82 @@ TinySegmenter unusable. Cap enforcement, the no-Japanese short circuit, error
 paths and unknown Tokens land in the same suite for free. `chunk.js` stays a
 module for organisation, but is an internal detail with no test file of its own.
 
-Alongside that, a one-off script run by hand against the live API measures how
-many Tokens resolve to an Entry. That hit rate belongs in this section once
-measured — it is a measurement, not a test, and like the 55-word deinflection
-corpus it is evidence the rule generalises, not proof.
+Alongside that, `npm run measure-corpus` (`scripts/measure-corpus.mjs`) runs the
+corpus against the live API by hand and measures how many Tokens resolve to an
+Entry. It is a measurement, not a test, and like the 55-word deinflection corpus
+it is evidence the rule generalises, not proof.
 
-_Hit rate: to be recorded when the corpus is run._
+### Measured hit rate — 2026-08-12
+
+**97.3% of Tokens resolve exactly** (179 of 184 tappable Tokens across the
+32-sentence corpus; 97 of 101 distinct lemmas, 96.0%). Punctuation is excluded,
+since it is rendered but never tappable.
+
+"Resolve" is deliberately strict: the dictionary must return an Entry whose
+Headword **or** Reading *is* the lemma. Counting "Jisho returned something"
+would flatter the rule by exactly the failure mode it exists to prevent — a
+search for a non-word usually returns entries that merely start with the string.
+
+| Part of speech | Distinct lemmas resolved |
+|---|---|
+| 動詞 (verb) | 25/25 — 100% |
+| 形容詞 (adjective) | 5/5 — 100% |
+| 助動詞 (auxiliary) | 3/3 — 100% |
+| 連体詞, 副詞 | 3/3 — 100% |
+| 名詞 (noun) | 48/51 — 94.1% |
+| 助詞 (particle) | 13/14 — 92.9% |
+
+**The verbs are the result that matters.** Deinflection is the hard part and the
+reason the analyzer exists at all; 100% of verbs and adjectives reaching their
+dictionary Entry is the claim ADR-0003 was written to make.
+
+### The five misses, one by one
+
+Reading the list matters more than the percentage, and four of the five are
+softer than the number suggests:
+
+- **勉強する, 出席する** (2 lemmas, 2 Tokens) — the サ変 merge composes a lookup
+  string (`head.surface + する`) that Jisho files under the bare noun. Searching
+  勉強する returns 勉強 as its **top** result, tagged as a suru verb, so the
+  learner who taps 勉強し sees the right entry. A miss by this script's strict
+  definition; not a miss on screen.
+- **ぐらい** (1 lemma, 2 Tokens) — Jisho's headword is くらい, of which ぐらい is
+  a variant reading. Top result is again the correct entry.
+- **東京駅** (1 lemma, 1 Token) — **the only true dead end in the corpus.** Jisho
+  has no 東京駅 entry at all, so the overlay says there is none. This is the
+  derivational-suffix rule (東京 + 駅 → look up the compound) doing exactly what
+  it was designed to do and finding that the dictionary doesn't carry the
+  compound. Recorded as a limitation below.
+
+So: **1 dead-end tap in 184**, and 4 more where the top result is right but the
+Headword isn't string-identical to the lemma.
+
+### Limitation: a merged compound the dictionary doesn't carry
+
+東京駅 is the shape to watch — a proper noun plus a 接尾/一般 suffix. The merge
+is right for the *reading* (東京駅 is one word on the page) and right for
+子供たち, which resolves; it just outruns Jisho's entry list for place names.
+
+The fix, when it's worth doing, is a **fallback to the head morpheme's lemma**
+when the merged lookup returns nothing: tap 東京駅, get 東京 with the Surface
+form still shown above it. That costs a second request only in the case that
+already failed. Deliberately not done in #24, which is a measurement ticket —
+tracked separately so it isn't lost.
+
+### Method note: Jisho throttles sustained request rates
+
+The first run of the script paced lookups 60 ms apart and **23 of 101 lemmas
+came back as proxy 502s**, which would have been excluded from the denominator
+and silently inflated the headline number. Probing 16 words at four spacings:
+5/16 failed at 60 ms, 3/16 at 150 ms, 0/16 at 250 ms, 0/16 at 800 ms. The script
+now paces at 350 ms and retries once, and reports any remaining exclusions
+loudly.
+
+This does **not** affect the app: a burst of 4 simultaneous requests — the
+pattern `searchWords` uses for ADR-0002's deinflection candidates — was tested
+at 0/20 failures. The limit is on sustained rate, not concurrency, so it
+constrains bulk tooling like this script rather than a person tapping words.
+Anything that walks a corpus in future should pace itself the same way.
 
 ## Consequences
 

@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "record-corpus": "node scripts/record-corpus.mjs"
+    "record-corpus": "node scripts/record-corpus.mjs",
+    "measure-corpus": "VITE_JISHO_PROXY_URL=$(node -p \"require('./amplify_outputs.json').custom.jishoProxyUrl\") vite-node scripts/measure-corpus.mjs"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.11.0",
