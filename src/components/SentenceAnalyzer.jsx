@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { analyzeSentence, warmUpAnalyzer, MAX_SENTENCE_LENGTH } from '../api/sentence';
+import TokenInfoModal from './TokenInfoModal';
+import KanjiInfoModal from './KanjiInfoModal';
 
 /**
- * The Sentence tab: paste Japanese, see how it breaks into words.
+ * The Sentence tab: paste Japanese, tap the words in it.
  *
- * The Tokens shown here are not tappable yet — looking one up is #21. What this
- * does deliver is correct, visible word boundaries: 行きました is one Token, not
- * the three morphemes IPADIC actually emits, while を and に stand on their own.
+ * Two things happen here. The analyzer gives correct, visible word boundaries —
+ * 行きました is one Token, not the three morphemes IPADIC actually emits, while
+ * を and に stand on their own — and tapping any of them opens the Entry it
+ * resolves to, with the Sentence still on screen behind the overlay.
  *
  * State is local rather than in a Context: nothing outside this tab needs to
  * know what was pasted, and a Sentence is deliberately ephemeral (ADR-0003).
@@ -37,6 +40,10 @@ export default function SentenceAnalyzer() {
   const [tokens, setTokens] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  // The Token whose Entry is on screen, or null when no overlay is open.
+  const [selectedToken, setSelectedToken] = useState(null);
+  // A kanji being explored from inside that overlay, or null.
+  const [drilledKanji, setDrilledKanji] = useState(null);
 
   // Warm the Lambda up the moment the tab opens. It carries a 12.5 MB
   // dictionary, so a cold start costs ~1.2 s against 2-3 ms warm — firing this
@@ -64,6 +71,9 @@ export default function SentenceAnalyzer() {
     e.preventDefault();
 
     setError('');
+    // A new Sentence retires whatever was being looked up in the old one.
+    setSelectedToken(null);
+    setDrilledKanji(null);
     // Drop the previous results before the new request. Leaving them up would
     // show the breakdown of the OLD sentence underneath the new one if this
     // analysis fails, which reads as a wrong answer rather than a failure.
@@ -160,7 +170,7 @@ export default function SentenceAnalyzer() {
           {/* Counts every Token, including punctuation, so the number matches
               what's actually on screen — a user can count them. */}
           <p className="text-muted small text-center mb-3">
-            Broken into {tokens.length} pieces. Tap-to-look-up is coming soon.
+            Broken into {tokens.length} pieces. Tap one to look it up.
           </p>
 
           {/* Wraps onto as many lines as it needs; `keep-all` stops a single
@@ -171,25 +181,46 @@ export default function SentenceAnalyzer() {
             style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}
           >
             {tokens.map((token, i) =>
-              // Punctuation renders as plain text with no box: a learner
-              // shouldn't read a full stop as something to interact with.
+              // Punctuation renders as plain text with no box and no button
+              // role: a learner shouldn't read a full stop as something to
+              // interact with, and a screen reader shouldn't announce one as a
+              // tap target.
               token.isInteractive ? (
                 // Index is a safe key here: the list is replaced wholesale on
                 // every analysis and never reordered, inserted into, or filtered.
-                <div key={i} className="border rounded px-2 py-1 text-center bg-light">
-                  <div lang="ja" className="fs-5">
+                <button
+                  key={i}
+                  type="button"
+                  className="btn btn-light border rounded px-2 py-1 d-flex flex-column justify-content-center"
+                  // Bootstrap's padding alone leaves a single-kana Token around
+                  // 34px tall; 44px is the minimum comfortable touch target in
+                  // both Apple's and Android's guidelines (see .touch-target in
+                  // App.css, which can't be used here — it centres its content
+                  // in a row, which would put 行きました and → 行く side by side).
+                  style={{ minHeight: '44px' }}
+                  onClick={() => setSelectedToken(token)}
+                  // The visible text is the Surface form, so the dictionary form
+                  // has to be spoken for a screen reader to reach it at all.
+                  aria-label={
+                    token.baseForm === token.surface
+                      ? `Look up ${token.surface}`
+                      : `Look up ${token.surface}, dictionary form ${token.baseForm}`
+                  }
+                >
+                  <span lang="ja" className="fs-5">
                     {token.surface}
-                  </div>
+                  </span>
 
                   {/* The dictionary form, shown only when it differs — 行きました
                       → 行く is the part worth learning; a noun repeating itself
-                      is noise. */}
+                      is noise. Hidden from screen readers because aria-label
+                      above already says it, and better. */}
                   {token.baseForm !== token.surface && (
-                    <div lang="ja" className="text-muted small">
+                    <span lang="ja" className="text-muted small" aria-hidden="true">
                       → {token.baseForm}
-                    </div>
+                    </span>
                   )}
-                </div>
+                </button>
               ) : (
                 <div key={i} lang="ja" className="fs-5 px-1 py-1 text-muted">
                   {token.surface}
@@ -198,6 +229,23 @@ export default function SentenceAnalyzer() {
             )}
           </div>
         </div>
+      )}
+
+      {/* The kanji explorer REPLACES the Token overlay rather than stacking on
+          top of it — the same swap AddToDeckModal does with CreateDeckModal.
+          Two Modals mounted at once would both close on a single Escape, and
+          useBackButton is built to have one overlay per level. `selectedToken`
+          is left untouched, so closing the explorer lands back on the Entry. */}
+      {drilledKanji ? (
+        <KanjiInfoModal initialKanji={drilledKanji} onClose={() => setDrilledKanji(null)} />
+      ) : (
+        selectedToken && (
+          <TokenInfoModal
+            token={selectedToken}
+            onClose={() => setSelectedToken(null)}
+            onKanjiClick={setDrilledKanji}
+          />
+        )
       )}
     </>
   );

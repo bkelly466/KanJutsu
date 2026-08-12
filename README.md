@@ -6,6 +6,7 @@ A Japanese study web app — inspired by what the Pleco dictionary does for Chin
 
 - **Dictionary (public, no login).** Word-first search that accepts English, kana, or kanji. Tap any kanji in a result to open a Pleco-style explorer overlay — readings, meanings, stroke count, JLPT level, and common words — and keep drilling from kanji to kanji without losing your place.
 - **Past- and te-form verbs find their dictionary entry.** Search 飲んだ, 見て or のんだ and you get 飲む / 見る, with a note naming the dictionary form — so a verb met in the wild leads back to the form worth memorising. The substitution is never silent, and one tap searches your original text instead.
+- **Sentence breakdown (public, no login).** Paste Japanese and see it split into words — Japanese has no spaces, so the app finds the boundaries for you. 行きました comes back as one word showing its dictionary form 行く, while を and に stand on their own. Tap any word for its dictionary entry without losing the sentence behind it, and tap the kanji inside that to keep drilling.
 - **Verb forms.** Verbs show their dictionary and polite (ます) forms, computed rule-based from the verb class.
 - **Cloud flashcards (login).** Build decks of kanji and word cards from dictionary results. Decks persist to your account and are studied with SM-2 spaced repetition — rate each card Again/Hard/Good/Easy and it schedules the next review.
 - **Per-card control.** Open any card in a deck to reword its definition in your own words (the dictionary original is kept, so you can revert), see its full review history — added, last reviewed, next due, interval, ease factor — reset its scheduling, or add it to another deck.
@@ -27,7 +28,7 @@ npx ampx sandbox    # personal cloud dev backend (writes amplify_outputs.json)
 
 ## Roadmap
 
-- **Sentence breakdown (in progress).** Paste Japanese and see it split into words — Japanese has no spaces, so the app finds the boundaries for you. 行きました comes back as one word showing its dictionary form 行く, while を and に stand on their own. Making each word tappable is the next step.
+- Adding a word straight from a sentence breakdown to a deck
 - Radicals for richer kanji entries
 - More verb conjugations (past, negative, て-form)
 - Installable as a PWA (home-screen icon, offline study), plus real-time deck sync across devices
