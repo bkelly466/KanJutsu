@@ -1,29 +1,64 @@
-import { useState } from 'react';
-import { analyzeSentence } from '../api/sentence';
+import { useEffect, useState } from 'react';
+import { analyzeSentence, warmUpAnalyzer, MAX_SENTENCE_LENGTH } from '../api/sentence';
 
 /**
- * The Sentence tab: paste Japanese, see how it breaks apart.
+ * The Sentence tab: paste Japanese, see how it breaks into words.
  *
- * This is the tracer bullet (issue #25) — the thinnest complete path through
- * every layer, proving the wire works. The morphemes are shown as plain,
- * non-interactive text on purpose:
- *
- *   - merging them into whole tappable words is #20 (src/utils/chunk.js)
- *   - tapping one to see its dictionary entry is #21
- *
- * So 行きました currently appears as three separate pieces — 行き, まし, た.
- * That is the analyzer telling the truth about what IPADIC emits, not a bug.
+ * The Tokens shown here are not tappable yet — looking one up is #21. What this
+ * does deliver is correct, visible word boundaries: 行きました is one Token, not
+ * the three morphemes IPADIC actually emits, while を and に stand on their own.
  *
  * State is local rather than in a Context: nothing outside this tab needs to
  * know what was pasted, and a Sentence is deliberately ephemeral (ADR-0003).
  */
+
+/**
+ * Show the character counter from 80% of the cap onward. Always showing it
+ * would clutter the common case — most sentences are nowhere near 300 — but a
+ * limit you only discover by hitting it is a bad limit.
+ */
+const COUNTER_VISIBLE_FROM = Math.floor(MAX_SENTENCE_LENGTH * 0.8);
+
+/**
+ * Whether the analyzer has already been warmed this page load.
+ *
+ * Module scope, not component state: App.jsx mounts this component only while
+ * its tab is active, so every switch away and back remounts it and would fire
+ * another ping. Flipping tabs five times shouldn't cost five requests, cheap as
+ * they are. A page load is the right granularity — the Lambda stays warm for
+ * minutes, and a full reload is when we'd genuinely want to warm it again.
+ */
+let hasWarmedUp = false;
+
 export default function SentenceAnalyzer() {
   const [text, setText] = useState('');
   // null means "nothing analyzed yet", which is a different screen from
   // "analyzed and found nothing" — hence null rather than an empty array.
-  const [morphemes, setMorphemes] = useState(null);
+  const [tokens, setTokens] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Warm the Lambda up the moment the tab opens. It carries a 12.5 MB
+  // dictionary, so a cold start costs ~1.2 s against 2-3 ms warm — firing this
+  // now spends that time while the user is still pasting and reading.
+  //
+  // This component only mounts when the tab is active (see App.jsx), so mount
+  // IS the tab opening. Nothing is awaited and nothing is stored: a failed
+  // warm-up is silent by design, because it's an optimisation the user never
+  // asked for. warmUpAnalyzer never rejects, so there's no floating rejection.
+  //
+  // Under StrictMode (main.jsx) this effect runs twice in development, so
+  // expect two pings locally on the first open and none after — that's the
+  // guard working, not a bug.
+  useEffect(() => {
+    if (hasWarmedUp) return;
+    hasWarmedUp = true;
+    warmUpAnalyzer();
+  }, []);
+
+  const trimmedLength = text.trim().length;
+  const isOverLimit = trimmedLength > MAX_SENTENCE_LENGTH;
+  const showCounter = trimmedLength >= COUNTER_VISIBLE_FROM;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,15 +67,16 @@ export default function SentenceAnalyzer() {
     // Drop the previous results before the new request. Leaving them up would
     // show the breakdown of the OLD sentence underneath the new one if this
     // analysis fails, which reads as a wrong answer rather than a failure.
-    setMorphemes(null);
+    setTokens(null);
     setIsLoading(true);
 
     try {
-      const { morphemes: found } = await analyzeSentence(text);
-      setMorphemes(found);
+      const { tokens: found } = await analyzeSentence(text);
+      setTokens(found);
     } catch (err) {
       // Note what we do NOT do here: touch `text`. A network blip must not cost
-      // the user the sentence they pasted.
+      // the user the sentence they pasted. This also carries the guard messages
+      // for over-long text and text with no Japanese in it.
       setError(err.message || 'Something went wrong.');
     } finally {
       setIsLoading(false);
@@ -55,74 +91,111 @@ export default function SentenceAnalyzer() {
         </label>
         <textarea
           id="sentenceInput"
-          className="form-control fs-6 mb-2"
+          className="form-control fs-6"
           rows="3"
           lang="ja"
           placeholder="昨日、友達と映画を見に行きました。"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          // Ties the counter to the field so a screen reader announces the limit
+          // when the textarea is focused. Without it, someone who can't see the
+          // red text tabs to a disabled Analyze button with no explanation.
+          aria-describedby="sentenceCounter"
         />
-        <div className="d-flex justify-content-end">
+
+        <div className="d-flex justify-content-between align-items-center mt-2">
+          {/* Counter on the left, button on the right. The empty span keeps the
+              button hard right when there's no counter to show. */}
+          {showCounter ? (
+            <span
+              id="sentenceCounter"
+              // Announce changes as they're typed, but politely — this must not
+              // interrupt what the user is doing.
+              aria-live="polite"
+              className={`small ${isOverLimit ? 'text-danger fw-semibold' : 'text-muted'}`}
+            >
+              {trimmedLength} / {MAX_SENTENCE_LENGTH}
+              {/* Say what's wrong and by how much, rather than just going red.
+                  Text over the limit is refused, never silently shortened. */}
+              {isOverLimit &&
+                ` — too long by ${trimmedLength - MAX_SENTENCE_LENGTH}. Shorten it to analyze.`}
+            </span>
+          ) : (
+            <span />
+          )}
+
           <button
             type="submit"
             className="btn btn-dark px-4"
-            // Blank input has nothing to analyze, so the button would only ever
-            // produce an empty result — disable it rather than explain that.
-            disabled={isLoading || text.trim() === ''}
+            // Blank input has nothing to analyze; over-limit input would only be
+            // refused. Disabling beats explaining after the fact in both cases.
+            disabled={isLoading || trimmedLength === 0 || isOverLimit}
           >
             Analyze
           </button>
         </div>
       </form>
 
-      {/* Errors and empty states share the muted, centered style the Dictionary
-          tab uses, so the two tabs read as one product. */}
-      {error && <p className="text-muted text-center py-3">{error}</p>}
-
-      {isLoading && <p className="text-muted text-center py-3">Analyzing sentence…</p>}
-
-      {!isLoading && morphemes?.length === 0 && (
-        <p className="text-muted text-center py-3">
-          Nothing to analyze in that text.
+      {/* Errors, hints and empty states share the muted, centered style the
+          Dictionary tab uses, so the two tabs read as one product. */}
+      {/* role="alert" matches the convention already used in App.jsx and
+          CardDetailModal.jsx, so a failure is announced rather than only seen. */}
+      {error && (
+        <p className="text-muted text-center py-3" role="alert">
+          {error}
         </p>
       )}
 
-      {!isLoading && morphemes?.length > 0 && (
+      {isLoading && <p className="text-muted text-center py-3">Analyzing sentence…</p>}
+
+      {!isLoading && tokens?.length === 0 && (
+        <p className="text-muted text-center py-3">Nothing to analyze in that text.</p>
+      )}
+
+      {!isLoading && tokens?.length > 0 && (
         // Plain div, not `.container` — this already sits inside App's own
         // `.container`, and nesting them double-applies Bootstrap's gutter
         // padding, which visibly narrows the content on a phone.
         <div>
-          {/* "pieces", not "morphemes" — this is in front of a beginner
-              learner, not a linguist. The code keeps the precise name. */}
+          {/* Counts every Token, including punctuation, so the number matches
+              what's actually on screen — a user can count them. */}
           <p className="text-muted small text-center mb-3">
-            {morphemes.length} {morphemes.length === 1 ? 'piece' : 'pieces'} — the
-            analyzer&apos;s raw output. Whole words and tapping come next.
+            Broken into {tokens.length} pieces. Tap-to-look-up is coming soon.
           </p>
 
           {/* Wraps onto as many lines as it needs; `keep-all` stops a single
-              piece being split mid-word, matching the overflow policy used for
+              Token being split mid-word, matching the overflow policy used for
               headwords and study card fronts elsewhere in the app. */}
           <div
-            className="d-flex flex-wrap gap-2 justify-content-center"
+            className="d-flex flex-wrap gap-2 justify-content-center align-items-start"
             style={{ wordBreak: 'keep-all', overflowWrap: 'anywhere' }}
           >
-            {morphemes.map((m, i) => (
-              // Index is a safe key here: the list is replaced wholesale on every
-              // analysis and never reordered, inserted into, or filtered.
-              <div key={i} className="border rounded px-2 py-1 text-center bg-light">
-                <div lang="ja" className="fs-5">{m.surface}</div>
+            {tokens.map((token, i) =>
+              // Punctuation renders as plain text with no box: a learner
+              // shouldn't read a full stop as something to interact with.
+              token.isInteractive ? (
+                // Index is a safe key here: the list is replaced wholesale on
+                // every analysis and never reordered, inserted into, or filtered.
+                <div key={i} className="border rounded px-2 py-1 text-center bg-light">
+                  <div lang="ja" className="fs-5">
+                    {token.surface}
+                  </div>
 
-                {/* Only worth showing when it differs — 行き → 行く is the
-                    interesting case; a noun repeating itself is noise. */}
-                {m.baseForm !== m.surface && (
-                  <div lang="ja" className="text-muted small">→ {m.baseForm}</div>
-                )}
-
-                <div className="text-muted" style={{ fontSize: '0.7rem' }}>
-                  {m.isUnknown ? 'unknown' : m.pos || '—'}
+                  {/* The dictionary form, shown only when it differs — 行きました
+                      → 行く is the part worth learning; a noun repeating itself
+                      is noise. */}
+                  {token.baseForm !== token.surface && (
+                    <div lang="ja" className="text-muted small">
+                      → {token.baseForm}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              ) : (
+                <div key={i} lang="ja" className="fs-5 px-1 py-1 text-muted">
+                  {token.surface}
+                </div>
+              ),
+            )}
           </div>
         </div>
       )}

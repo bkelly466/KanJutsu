@@ -27,7 +27,7 @@ npx ampx sandbox    # personal cloud dev backend (writes amplify_outputs.json)
 
 ## Roadmap
 
-- **Sentence breakdown (in progress).** Paste Japanese and tap the words in it — Japanese has no spaces, so the app finds the boundaries for you. The analyzer and the Sentence tab are live; merging its output into whole tappable words is the next step.
+- **Sentence breakdown (in progress).** Paste Japanese and see it split into words — Japanese has no spaces, so the app finds the boundaries for you. 行きました comes back as one word showing its dictionary form 行く, while を and に stand on their own. Making each word tappable is the next step.
 - Radicals for richer kanji entries
 - More verb conjugations (past, negative, て-form)
 - Installable as a PWA (home-screen icon, offline study), plus real-time deck sync across devices

@@ -16,10 +16,9 @@
  * What it returns:
  *   Raw morphemes with their part-of-speech tags — NOT finished words. IPADIC
  *   splits 行きました into 行き|まし|た, and `行き` isn't something you can look
- *   up. Merging morphemes back into tappable Tokens will be the client's job
- *   (`src/utils/chunk.js`, still to be written — issue #20), because that rule
- *   is the error-prone part and the client is the only place this project can
- *   unit-test it.
+ *   up. Merging morphemes back into tappable Tokens is the client's job
+ *   (`src/utils/chunk.js`), because that rule is the error-prone part and the
+ *   client is the only place this project can unit-test it.
  *
  * Event format:
  *   Lambda Function URLs send an API Gateway HTTP API v2-shaped event, so the
@@ -40,10 +39,10 @@ import { TokenizerBuilder } from 'lindera-wasm-nodejs-ipadic';
  * Longest sentence we'll analyze. 300 characters is several sentences of
  * Japanese — comfortably more than the "paste a paragraph" case.
  *
- * NOTE: today this is the ONLY guard. Issue #23 will add a client-side check
- * with a visible counter, after which this becomes the defensive copy that
- * stops a hand-crafted request burning Lambda time on a novel. Until then, a
- * 400 from here is the expected path for over-long input, not a client bug.
+ * NOTE: the client enforces the same number first, with a visible counter
+ * (src/api/sentence.js). This copy is the defensive one — it stops a
+ * hand-crafted request burning Lambda time on a novel. A 400 from here means
+ * something slipped past the client guard, so it is worth investigating.
  */
 const MAX_TEXT_LENGTH = 300;
 
@@ -55,8 +54,8 @@ const MAX_TEXT_LENGTH = 300;
  * outside the handler survives into the next invocation. So the first request
  * after a cold start pays this cost and every request after it gets the
  * tokenizer for free. Measured on the sandbox: ~1.2 s cold, 2-3 ms warm.
- * (Issue #23 will fire a warm-up ping when the Sentence tab opens, so that
- * first cost lands while the user is still pasting rather than after.)
+ * (The client fires a warm-up ping when the Sentence tab opens, so that first
+ * cost lands while the user is still pasting rather than after.)
  *
  * It's built lazily rather than at module load so that a failure surfaces as a
  * normal 500 with a message, instead of an opaque Lambda init error.
@@ -89,8 +88,16 @@ interface Morpheme {
   baseForm: string;
   /** Top-level part of speech, e.g. "動詞", "助詞", "助動詞", "記号". */
   pos: string;
-  /** First POS subcategory. Carries 自立 / 非自立, which the merge rule needs. */
+  /** First POS subcategory. Carries 自立 / 非自立 / 接尾, which the merge rule needs. */
   posDetail: string;
+  /**
+   * Second POS subcategory. Only 接尾 needs it, and it matters: IPADIC lumps
+   * honorifics (接尾,人名 — さん, 様) and counters (接尾,助数詞 — 杯, 円) in with
+   * genuine word-building suffixes (東京+駅). The merge rule uses this to decide
+   * whether the merged text becomes the lookup string, because searching
+   * "山田さん" finds nothing while "山田" finds the surname.
+   */
+  posDetail2: string;
   /** Katakana reading, e.g. "イキ". Empty when IPADIC has none. */
   reading: string;
   /** True when IPADIC didn't recognise the word (names, slang, latin text). */
@@ -120,6 +127,7 @@ function normalizeMorpheme(token: Record<string, string | undefined>): Morpheme 
     baseForm: clean(token.baseForm) || surface,
     pos: isUnknown ? '' : clean(token.partOfSpeech),
     posDetail: isUnknown ? '' : clean(token.partOfSpeechSubcategory1),
+    posDetail2: isUnknown ? '' : clean(token.partOfSpeechSubcategory2),
     reading: clean(token.reading),
     isUnknown,
   };

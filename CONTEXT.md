@@ -52,8 +52,10 @@ _Avoid_: token (a Morpheme is smaller), part
 A contiguous span of a Sentence offered to the user as a single tap target,
 built by merging one or more Morphemes. Its text is a Surface form; tapping it
 looks up an Entry, which may not exist.
-_Avoid_: word, segment, chunk — and don't call a Token a Morpheme: the whole
-point of the merge step is that they are different things.
+_Avoid_: word, segment — and don't call a Token a Morpheme: the whole point of
+the merge step is that they are different things. "Chunking" **is** the accepted
+name of the merge step itself (`src/utils/chunk.js`, `chunk()`); a Token is
+still never called a chunk.
 
 ### Study
 
