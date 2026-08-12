@@ -86,7 +86,10 @@ Architectural decisions with their reasoning live in `docs/adr/`.
   DeckDetail, StudySession, CreateDeckModal, AddToDeckModal, DetailedInfoCard).
 - `src/utils/` — `srs.js` (SM-2), `card.js` (card builders), `conjugate.js` (verb forms),
   `clickableKanji.jsx`.
-- `amplify/` — backend definition (auth, data, jisho-proxy).
+- `amplify/` — backend definition (auth, data, jisho-proxy, sentence-analyzer).
+- `scripts/` — one-off dev scripts, run by hand, never in CI. `record-corpus.mjs`
+  regenerates `src/api/sentence.fixtures.js` from a deployed sandbox; those
+  fixtures are recorded, never hand-written (ADR-0003).
 
 ## Commands
 - `npm run dev` — local dev server
@@ -94,6 +97,8 @@ Architectural decisions with their reasoning live in `docs/adr/`.
 - `npm run lint` — ESLint (must pass)
 - `npm test` — Vitest unit tests (must pass)
 - `npx ampx sandbox` — deploy a personal dev backend + write `amplify_outputs.json`
+- `npm run record-corpus` — re-record the sentence-analyzer test fixtures from
+  the running sandbox (needed only when the analyzer's response shape changes)
 
 ## Non-negotiable rules
 1. **Plan first, explain as you go.** Before a non-trivial change, state a short plan.

@@ -59,12 +59,68 @@ The Lambda returns morphemes and their POS tags; `src/utils/chunk.js` merges
 them into Tokens. IPADIC emits morphemes, not words — 行き|まし|た — and `行き`
 is not lookupable, so something has to merge them back.
 
-**The rule:** start a Token at each independent (自立) word and absorb the
-following auxiliaries (助動詞) and dependents (非自立); particles (助詞) stand
-alone. Full 文節 chunking was rejected because it puts `で` inside the tap
-target and corrupts the lookup string. Particles standing alone is deliberate,
-not a leftover: は vs. が is exactly what a beginner taps on, and Jisho has real
-entries for them.
+**The rule:** absorb auxiliaries (助動詞) and bound forms (非自立, 接尾) — except
+名詞/非自立 — into the Token before them; particles (助詞) and punctuation (記号) stand alone and close
+the current Token; everything else starts a new one. Full 文節 chunking was
+rejected because it puts `で` inside the tap target and corrupts the lookup
+string. Particles standing alone is deliberate, not a leftover: は vs. が is
+exactly what a beginner taps on, and Jisho has real entries for them.
+
+### Corrections the evidence forced (#20)
+
+The rule was originally written as "start a Token at each independent (自立)
+word". **That is factually wrong, and the recorded fixtures caught it** — the
+clearest possible vindication of recording them instead of writing them.
+
+The test every rule below answers to: **would this Token be a real thing to look
+up?** A Token a learner taps and gets nothing from is worse than two Tokens that
+each resolve.
+
+1. **IPADIC never tags a noun 自立.** 名詞 comes back as 一般, 代名詞, 副詞可能,
+   サ変接続, 固有名詞, 数. Keyed off 自立, every noun in the language would have
+   been homeless. The rule has to name what gets *absorbed*, not what starts.
+2. **The copula stands alone unless it's inflecting a verb or adjective.**
+   です after 傘 is a free-standing copula with its own entry; 傘です is not a
+   word. です after 面白い is polite inflection and belongs inside. IPADIC can't
+   separate them by the auxiliary alone — 飲んだ's past-tense だ is *also*
+   baseForm だ — so the rule keys off the head's part of speech.
+   Phrased as what **may** absorb rather than what may not, deliberately: an
+   unrecognised word carries no POS tag at all, so the inverted phrasing would
+   have let ペヤングです through as one "word". Review caught that; the corpus
+   never could, because 32 well-formed sentences contain nothing IPADIC doesn't
+   know.
+3. **Bound nouns (名詞/非自立) stand alone.** こと and よう are formal nouns with
+   real dictionary entries and are exactly the grammar a learner taps.
+   Absorbing them produced 来ること and 話せるよう as offered "words".
+4. **Content-bearing auxiliaries stand alone.** らしい, よう, そう, みたい carry
+   meaning — usually the whole point of the sentence. Absorbed, they produced
+   いるらしいです, whose "→ いる" actively hides the hearsay marker inside a verb.
+   Pure inflection (まし, た, ませ, ん, なかっ, れる, られる) keeps absorbing.
+5. **する merges into a サ変接続 noun.** 勉強+し is one Token looking up 勉強する.
+   Suru-verbs are the largest verb class in Japanese; leaving them split showed
+   勉強 and し as unrelated words, against the feature's whole promise.
+
+**On 接尾, which is three different things.** A *derivational* suffix makes the
+merged text the lookup string — 東京 + 駅 searches 東京駅. But IPADIC also files
+honorifics (接尾,人名 — さん, 様) and counters (接尾,助数詞 — 杯, 時間, 円) under
+接尾, and neither is in any dictionary: 山田さん and 三杯 would be dead-end taps.
+Those keep the head's lemma, so the visible span stays 山田さん while the lookup
+is 山田. Telling them apart needs IPADIC's **second** subcategory, which the
+Lambda now emits as `posDetail2` for this single purpose. Inflectional marking
+(助動詞, 動詞/接尾) leaves the lemma alone regardless, so 食べさせられた still
+searches 食べる.
+
+### Known rough edges, accepted
+
+- **Splitting on particles leaves some non-word surfaces.** しなけれ in
+  宿題をしなければ is a Token because ば is a particle. Unavoidable while
+  particles stand alone, and the lookup (する) is still right.
+- **静か | な.** な is the attributive of a な-adjective, and Jisho lists 静かな.
+  Merging 形容動詞語幹 + な was considered and rejected for consistency with the
+  copula rule, but it is the weakest of these calls.
+- **降るでしょう stays merged** while いる | らしいです splits, because でしょう is
+  the polite form of です rather than an evidential. Defensible, but a line drawn
+  by judgement rather than by the tagset.
 
 Chunking lives on the client because it is the feature's most error-prone rule
 and it is **pure** — the only kind of code this repo can test, since there is no
@@ -74,7 +130,7 @@ make every iteration a backend redeploy.
 
 ## Lookups use IPADIC's lemma, not the Surface form
 
-Tapping a Token searches its `basic_form` with `allowDeinflection: false`, and
+Tapping a Token searches its `baseForm` with `allowDeinflection: false`, and
 the overlay displays the relationship (飲んだ → 飲む) because that is the
 pedagogically useful part. One request instead of up to four, and no guessing.
 

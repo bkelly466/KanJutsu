@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "record-corpus": "node scripts/record-corpus.mjs"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.11.0",
