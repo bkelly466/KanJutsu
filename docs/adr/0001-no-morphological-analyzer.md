@@ -1,5 +1,12 @@
 # No morphological analyzer (MeCab / kuromoji)
 
+> **Partly superseded by [ADR-0003](./0003-sentence-analyzer-in-lambda.md).**
+> The Sentence tab added an analyzer — in Lambda, where the payload never
+> reaches the client. Everything below about keeping kuromoji *out of the
+> browser* still stands, as does the deinflection fallback for the Dictionary
+> tab. Only "no analyzer anywhere" is retired, and by exactly the route the
+> "When to revisit" section predicted.
+
 We considered adding a Japanese morphological analyzer so that a Surface form
 typed by the user (飲んだ) would resolve to the right Entry (飲む). We decided
 not to, and to handle the narrow gap with a rule-based deinflection fallback in

@@ -11,7 +11,9 @@
  */
 
 export const initialNavState = {
-  activeTab: 'dictionary', // 'dictionary' | 'decks'
+  // 'sentence' is the Sentence analyzer tab. Like 'dictionary' it's public —
+  // only 'decks' gates on login.
+  activeTab: 'dictionary', // 'dictionary' | 'sentence' | 'decks'
   decksView: 'list', // 'list' | 'detail' | 'study'
   selectedDeckId: null,
   // What the picker is adding: { item, type } or null. `type` is 'kanji' | 'word'.

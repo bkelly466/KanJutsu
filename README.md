@@ -13,7 +13,7 @@ A Japanese study web app — inspired by what the Pleco dictionary does for Chin
 
 ## Tech
 
-React 19 + Vite frontend, Bootstrap CSS. AWS Amplify Gen 2 backend: Cognito (auth), AppSync + DynamoDB (decks/cards, owner-scoped), and a Lambda proxy for the Jisho API (which doesn't allow browser CORS). Dictionary data from [kanjiapi.dev](https://kanjiapi.dev) and [Jisho](https://jisho.org). Vitest unit tests and GitHub Actions CI; deployed with Amplify Hosting.
+React 19 + Vite frontend, Bootstrap CSS. AWS Amplify Gen 2 backend: Cognito (auth), AppSync + DynamoDB (decks/cards, owner-scoped), a Lambda proxy for the Jisho API (which doesn't allow browser CORS), and a second Lambda running [Lindera](https://github.com/lindera/lindera-wasm) with the IPADIC dictionary for Japanese word segmentation — 12.5 MB of WebAssembly that has no business in a browser. Dictionary data from [kanjiapi.dev](https://kanjiapi.dev) and [Jisho](https://jisho.org). Vitest unit tests and GitHub Actions CI; deployed with Amplify Hosting.
 
 ## Development
 
@@ -27,7 +27,8 @@ npx ampx sandbox    # personal cloud dev backend (writes amplify_outputs.json)
 
 ## Roadmap
 
-- Example sentences and radicals for richer kanji entries
+- **Sentence breakdown (in progress).** Paste Japanese and tap the words in it — Japanese has no spaces, so the app finds the boundaries for you. The analyzer and the Sentence tab are live; merging its output into whole tappable words is the next step.
+- Radicals for richer kanji entries
 - More verb conjugations (past, negative, て-form)
 - Installable as a PWA (home-screen icon, offline study), plus real-time deck sync across devices
 - AI-generated example sentences using the words you just studied

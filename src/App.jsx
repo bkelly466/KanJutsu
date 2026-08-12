@@ -1,6 +1,7 @@
 import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react';
 import './App.css';
 import Query from './components/Query';
+import SentenceAnalyzer from './components/SentenceAnalyzer';
 import DeckList from './components/DeckList';
 import DeckDetail from './components/DeckDetail';
 import StudySession from './components/StudySession';
@@ -100,6 +101,14 @@ function App() {
           </li>
           <li className="nav-item">
             <button
+              className={`nav-link ${activeTab === 'sentence' ? 'active text-dark fw-semibold' : 'text-muted'}`}
+              onClick={() => setTab('sentence')}
+            >
+              Sentence
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
               className={`nav-link ${activeTab === 'decks' ? 'active text-dark fw-semibold' : 'text-muted'}`}
               onClick={() => setTab('decks')}
             >
@@ -113,7 +122,11 @@ function App() {
           </li>
         </ul>
 
-        {activeTab === 'dictionary' ? <Query /> : renderDecksTab()}
+        {/* Two of the three tabs are public; only Decks gates on login, which
+            renderDecksTab handles for itself. */}
+        {activeTab === 'dictionary' && <Query />}
+        {activeTab === 'sentence' && <SentenceAnalyzer />}
+        {activeTab === 'decks' && renderDecksTab()}
 
         {/* Rendered at app level so it can open from either tab; it reads what
             it's adding, and every deck it can add to, from the two contexts. */}

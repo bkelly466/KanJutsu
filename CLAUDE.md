@@ -100,7 +100,10 @@ Architectural decisions with their reasoning live in `docs/adr/`.
    Briefly explain any new pattern/tool — the developer is ~2 months into coding and
    values clear, commented code over cleverness.
 2. **Branch → PR → green CI → squash-merge to `main`. Never commit to `main` directly.**
-   Pushing `main` auto-deploys via Amplify. Pushes are run by the human.
+   Pushing `main` auto-deploys via Amplify.
+   **The assistant commits, pushes the feature branch, and opens the PR** — no
+   need to ask each time. **The human does the final squash-merge to `main`**,
+   because that is the step that deploys. Never push to `main`.
    **Exception: `HANDOFF.md` is a local, gitignored file** — edit it directly on
    `main` (no branch, no PR, no commit). It never reaches the repo, so it can't
    trigger a deploy.
@@ -120,9 +123,16 @@ Architectural decisions with their reasoning live in `docs/adr/`.
 ## AWS dev workflow
 - `npx ampx sandbox` runs a personal cloud backend and writes `amplify_outputs.json`.
   Keep it running while developing; Ctrl-C to stop; `npx ampx sandbox delete` to tear down.
-- SSO session expires (~daily): on "Token is expired" run `aws sso login`
-  (profile `default`, region `us-east-2`). This AWS/dev login is **separate** from the
-  in-app Cognito user login.
+- SSO session expires (~daily): on "Token is expired" run
+  `aws sso login --sso-session Admin` and use `--profile Admin`, region `us-east-2`.
+  **Do not use the `default` profile** — it points at a permission set that is no
+  longer assigned, so `aws sso login` appears to succeed and then every call fails
+  with `GetRoleCredentials: No access`. This AWS/dev login is **separate** from
+  the in-app Cognito user login.
+- **This account's Lambda concurrency limit is 10, not the default 1000**, shared
+  by every function. So `reservedConcurrentExecutions` cannot be set on anything
+  (AWS refuses any reservation leaving under 10 unreserved, and the attempt rolls
+  the stack back). Raising the service quota is on the backlog.
 
 ## Tech stack
 React 19, Vite 8, AWS Amplify Gen 2 (Cognito, AppSync, DynamoDB, Lambda), Bootstrap CSS,
