@@ -119,9 +119,10 @@ describe('navigationReducer', () => {
     });
 
     it('stays on the Sentence tab too — the picker opens over the breakdown', () => {
-      // The Sentence tab's Token overlay adds words the same way (issue #22).
-      // Yanking the user to another tab mid-sentence would throw away the text
-      // they pasted, since App.jsx unmounts the tab that isn't active.
+      // The Sentence tab's Token overlay adds Entries the same way (issue #22).
+      // Switching tabs here would cost the user their analysis: App.jsx unmounts
+      // whichever tab isn't active, and a Sentence is deliberately not persisted
+      // (ADR-0003). The signed-out branch below accepts that cost knowingly.
       const onSentence = { ...initialNavState, activeTab: 'sentence' };
       const next = navigationReducer(onSentence, requestAdd({ word: '行く' }, 'word', true));
 
@@ -142,6 +143,11 @@ describe('navigationReducer', () => {
       // Same rule, reached from the Token overlay. Worth asserting separately:
       // the redirect is the acceptance criterion #22 is judged on, and it holds
       // because the rule keys off `authed`, never off which tab asked.
+      //
+      // The cost is real and accepted — this unmounts the Sentence tab, so the
+      // pasted text and its analysis are gone by the time the user has signed
+      // in. ADR-0003 makes a Sentence ephemeral by design, and the Dictionary
+      // tab loses its search results to the same redirect.
       const onSentence = { ...initialNavState, activeTab: 'sentence' };
       const next = navigationReducer(onSentence, requestAdd({ word: '行く' }, 'word', false));
 

@@ -52,7 +52,7 @@ export default function SentenceAnalyzer() {
   const [selectedEntryId, setSelectedEntryId] = useState(null);
 
   // Read, not written, here: the Token overlay's "Add to Deck" opens the picker,
-  // and this tab has to know when it's open so the two never mount at once.
+  // and this tab has to know when it's open so those two never mount together.
   // See the render block at the bottom of this file.
   const { deckPickerTarget } = useNavigation();
 
@@ -264,11 +264,20 @@ export default function SentenceAnalyzer() {
           applies — but it's rendered by App.jsx, so all this tab can do is step
           out of its way while `deckPickerTarget` is set. Hiding rather than
           clearing `selectedToken` means closing the picker lands back on the
-          Entry the word was added from, which is where the user was.
+          Entry it was added from, which is where the user was.
 
           The unmount and the mount land in the same commit either way, so
           useBackButton's deferred sync nets them out to no history change and
-          device Back still steps back exactly one level. */}
+          device Back still steps back exactly one level.
+
+          Note what this guard does NOT cover: KanjiInfoModal, whose own detail
+          card has an "Add to Deck" of its own, so a kanji drilled from here can
+          still put two Modals on screen at once. That's pre-existing and shared
+          with the Dictionary tab (Query.jsx does the same), and guarding it
+          here would rewind the user's kanji→kanji drill, because KanjiInfoModal
+          keeps that stack in its own state and would remount from
+          `drilledKanji`. Tracked as issue #34; fixing it means lifting that
+          stack the way `selectedEntryId` was lifted. */}
       {drilledKanji ? (
         <KanjiInfoModal initialKanji={drilledKanji} onClose={() => setDrilledKanji(null)} />
       ) : (

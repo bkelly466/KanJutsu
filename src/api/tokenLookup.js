@@ -35,6 +35,37 @@ import { searchWords } from './words';
 const cache = new Map();
 
 /**
+ * lemma → the entries a lookup already *settled* on, for the lemmas where one has.
+ *
+ * The promise cache above makes a repeat lookup free, but not *synchronous*: a
+ * `.then` on an already-resolved promise still can't run before the render that
+ * asked for it, so a component reading the cache on mount renders its loading
+ * state once regardless. That's a visible flash every time the overlay is
+ * re-mounted — closing the deck picker, or re-opening a word tapped earlier.
+ *
+ * This second map answers "do we already know?" during render, so the overlay
+ * can start in its final state instead of blinking through "Looking up…".
+ * Written only on success, alongside the promise cache, and cleared with it.
+ */
+const settled = new Map();
+
+/**
+ * The entries already known for `lemma`, or `undefined` if it has never been
+ * looked up. Safe to call during render — it never starts a request.
+ *
+ * `undefined` and `[]` mean genuinely different things here: "not looked up
+ * yet" versus "looked up, and this word has no entry". A caller deciding
+ * whether to show a spinner needs to tell those apart, so don't collapse them.
+ */
+export function peekTokenEntries(lemma) {
+  const key = (lemma ?? '').trim();
+  // Matches lookUpToken below, which resolves an empty lemma immediately
+  // without a request — so the answer is already known, and it's "no entry".
+  if (!key) return [];
+  return settled.get(key);
+}
+
+/**
  * Look up `lemma` and resolve with its entries (possibly an empty array).
  *
  * Rejects with the user-facing error from words.js on network/HTTP failure.
@@ -58,7 +89,11 @@ export function lookUpToken(lemma) {
   if (cached) return cached;
 
   const pending = searchWords(key, { allowDeinflection: false })
-    .then(({ results }) => results)
+    .then(({ results }) => {
+      // Record the answer synchronously-readable for peekTokenEntries above.
+      settled.set(key, results);
+      return results;
+    })
     .catch((error) => {
       cache.delete(key);
       throw error;
@@ -71,6 +106,7 @@ export function lookUpToken(lemma) {
 /** Empty the cache. Exists for tests; nothing in the app needs it. */
 export function clearTokenLookupCache() {
   cache.clear();
+  settled.clear();
 }
 
 /**

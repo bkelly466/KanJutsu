@@ -54,7 +54,9 @@ export default function WordDetailCard({ wordData, onClose, onKanjiClick }) {
               no longer a case where it wasn't passed in. Signed-out users still
               get the button — it sends them to the Decks tab to log in. */}
           <button
-            className="btn btn-dark flex-shrink-0 ms-2"
+            // touch-target brings this to the 44px floor the rest of the app
+            // uses; a bare Bootstrap button is about 36px tall.
+            className="btn btn-dark touch-target flex-shrink-0 ms-2"
             onClick={() => openDeckPicker(wordData, 'word')}
           >
             Add to Deck

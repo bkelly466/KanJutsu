@@ -10,10 +10,16 @@ import { useDecksContext } from '../context/decksContext';
 // the picker is opened from the dictionary but rendered up at the app level.
 export default function AddToDeckModal() {
   const { deckPickerTarget, closeDeckPicker } = useNavigation();
-  const { decks, addCardToDeck, createDeck } = useDecksContext();
+  const { decks, isLoading, addCardToDeck, createDeck } = useDecksContext();
 
   const [showCreate, setShowCreate] = useState(false);
   const [addedDeckIds, setAddedDeckIds] = useState(new Set());
+  // Local, for the same reason CardDetailModal's actionError is local: the
+  // app-level banner in App.jsx renders inside `.container`, underneath this
+  // fixed-position modal, AND only inside the Decks tab — so a failed write
+  // from the Dictionary or Sentence tab was invisible everywhere. The button
+  // simply stayed on "Add" and the tap looked like it had missed.
+  const [addError, setAddError] = useState('');
 
   // App only renders this when a target exists, but guard anyway — and do it
   // AFTER every hook, so the component can never bail out mid-hook-list. Reading
@@ -28,19 +34,20 @@ export default function AddToDeckModal() {
   const subtitle = (item.meanings || []).slice(0, 3).join(', ');
 
   // Only mark the deck "✓ Added" once the cloud write actually succeeds —
-  // addCardToDeck resolves to false on failure (an error banner shows behind
-  // the modal).
+  // addCardToDeck resolves to false on failure, and says so inside this modal.
   const handleAdd = async (deckId) => {
+    setAddError('');
     const ok = await addCardToDeck(deckId, item, type);
     if (ok) setAddedDeckIds(prev => new Set([...prev, deckId]));
+    else setAddError('Couldn’t add that card. Check your connection and try again.');
   };
 
   const handleCreate = async (deckData) => {
     // createDeck is async now (cloud); await the new id before adding the card.
-    // It returns null if the create failed (error shown via the banner).
     const newId = await createDeck(deckData);
     setShowCreate(false);
     if (newId) handleAdd(newId);
+    else setAddError('Couldn’t create that deck. Check your connection and try again.');
   };
 
   const isInDeck = (deck) =>
@@ -65,7 +72,19 @@ export default function AddToDeckModal() {
         <button type="button" className="btn-close" onClick={closeDeckPicker} aria-label="Close" />
       </div>
       <div className="modal-body">
-        {decks.length === 0 ? (
+        {/* Inside the modal, never the app-level banner — see addError above. */}
+        {addError && (
+          <div className="alert alert-warning py-2 small" role="alert">
+            {addError}
+          </div>
+        )}
+
+        {/* Three states, not two. Telling someone mid-load that they have no
+            decks — and inviting them to create one they already have — is the
+            empty state lying about a loading state. Wording matches App.jsx. */}
+        {isLoading && decks.length === 0 ? (
+          <p className="text-muted text-center py-3">Loading your decks…</p>
+        ) : decks.length === 0 ? (
           <p className="text-muted text-center py-3">No decks yet. Create one to get started.</p>
         ) : (
           <div className="list-group list-group-flush">

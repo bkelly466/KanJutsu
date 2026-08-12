@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { lookUpToken, pickPrimaryEntry } from '../api/tokenLookup';
+import { lookUpToken, peekTokenEntries, pickPrimaryEntry } from '../api/tokenLookup';
 import { renderWithClickableKanji } from '../utils/clickableKanji';
 import { extractKanji } from '../api/kanji';
 import { useNavigation } from '../context/navigationContext';
@@ -25,8 +25,8 @@ import Modal from './Modal';
  *     there's no entry, and still offer their kanji for drilling — 山田 has no
  *     dictionary entry, but 山 and 田 do.
  *
- *   - **"Add to Deck" closes the loop.** A word met while reading can go
- *     straight into a Deck, which is the whole point of the Sentence tab
+ *   - **"Add to Deck" closes the loop.** A Token that resolved to an Entry can
+ *     go straight into a Deck, which is the whole point of the Sentence tab
  *     existing alongside the flashcards. It builds the *same* word card the
  *     Dictionary tab builds — same shape, same dedupe key, same SRS defaults —
  *     because both routes end in openDeckPicker(entry, 'word'). The Sentence it
@@ -67,8 +67,24 @@ export default function TokenInfoModal({
   // navigation reducer, not here.
   const { openDeckPicker } = useNavigation();
 
-  const [entries, setEntries] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Start from whatever the cache already knows, so a lemma looked up earlier
+  // renders its Entry immediately instead of blinking through "Looking up…".
+  //
+  // This overlay is unmounted and re-mounted far more than it looks: drilling a
+  // kanji swaps it out, and so does opening the deck picker. The promise cache
+  // in tokenLookup.js makes those re-opens free but not *synchronous* — a
+  // `.then` can't run before the render that asked for it — so without this the
+  // flash happens on every single one.
+  //
+  // `undefined` from peekTokenEntries means "never looked up"; an array, even
+  // an empty one, is a settled answer. Hence `=== undefined` rather than a
+  // truthiness check, which would treat "no entry" as "still loading".
+  //
+  // Both arguments are FUNCTIONS: useState's lazy initialiser form runs only on
+  // the first render. Passing the values directly would re-read the cache on
+  // every render for a result React throws away.
+  const [entries, setEntries] = useState(() => peekTokenEntries(lemma) ?? []);
+  const [isLoading, setIsLoading] = useState(() => peekTokenEntries(lemma) === undefined);
   const [error, setError] = useState('');
   // Bumped by "Try again" to re-run the effect below. A failed lookup isn't
   // cached (see tokenLookup.js), so this really does retry the request.
