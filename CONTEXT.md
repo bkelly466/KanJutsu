@@ -18,6 +18,17 @@ The Japanese string an Entry is filed under, and the form a learner is expected
 to memorise: 飲む, not 飲んだ. For a kana-only Entry the Headword is the kana.
 _Avoid_: dictionary form, base form, lemma, word
 
+Two carve-outs, both deliberate:
+- **Lemma** is a real, distinct thing in the Sentence tab: it's what IPADIC
+  says a Token's dictionary form is (`Token.baseForm`), which is a *guess at* a
+  Headword, not one by definition — 勉強する is composed by `chunk.js` rather
+  than read from any dictionary, and a lemma may resolve to no Entry at all.
+  Code that means "the string we're about to search" says lemma.
+- **"Dictionary form"** stays the wording shown to a *user*. "Headword" is
+  precise and unhelpful to a learner two months into Japanese; the README and
+  the Sentence tab both already say dictionary form. Avoid it in code and in
+  design discussion, not in UI copy.
+
 **Surface form**:
 The Japanese string as it actually appeared — typically what the user typed.
 飲んだ is a Surface form of the Entry whose Headword is 飲む. A Headword is also
