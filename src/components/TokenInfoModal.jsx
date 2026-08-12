@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { lookUpToken, pickPrimaryEntry } from '../api/tokenLookup';
 import { renderWithClickableKanji } from '../utils/clickableKanji';
 import { extractKanji } from '../api/kanji';
+import { useNavigation } from '../context/navigationContext';
 import EntryBody from './EntryBody';
 import Modal from './Modal';
 
@@ -23,6 +24,13 @@ import Modal from './Modal';
  *     IPADIC didn't recognise still open the overlay, still say plainly that
  *     there's no entry, and still offer their kanji for drilling — 山田 has no
  *     dictionary entry, but 山 and 田 do.
+ *
+ *   - **"Add to Deck" closes the loop.** A word met while reading can go
+ *     straight into a Deck, which is the whole point of the Sentence tab
+ *     existing alongside the flashcards. It builds the *same* word card the
+ *     Dictionary tab builds — same shape, same dedupe key, same SRS defaults —
+ *     because both routes end in openDeckPicker(entry, 'word'). The Sentence it
+ *     came from is deliberately NOT carried onto the card (see issue #22).
  *
  * Props:
  *   token          - the Token that was tapped: { surface, baseForm, isUnknown }
@@ -52,6 +60,12 @@ export default function TokenInfoModal({
   onSelectEntry,
 }) {
   const lemma = token.baseForm;
+
+  // Same source as WordDetailCard's "Add to Deck": the picker is rendered up in
+  // App.jsx, and this is how you ask it to open. A signed-out user is sent to
+  // the Decks tab (where the login form lives) instead — that rule lives in the
+  // navigation reducer, not here.
+  const { openDeckPicker } = useNavigation();
 
   const [entries, setEntries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -219,6 +233,30 @@ export default function TokenInfoModal({
           </>
         )}
       </div>
+
+      {/* Only once a Token has actually resolved to an Entry — there is nothing
+          to add while the lookup is in flight, and a name like 山田 has no card
+          to build. Adding it here rather than to EntryBody is deliberate: that
+          component excludes anything the two surfaces frame differently, and
+          the Dictionary card puts this button beside the headword.
+
+          A footer rather than the end of the body because the Modal is
+          `scrollable` — Bootstrap pins the footer and scrolls only the body, so
+          the button stays reachable under a long list of senses instead of
+          being buried beneath it. */}
+      {!isLoading && !error && shown && (
+        <div className="modal-footer border-0 justify-content-end">
+          <button
+            type="button"
+            className="btn btn-dark touch-target"
+            // `shown`, not `primary`: if the user picked a homograph from
+            // "Other entries", that's the word they mean to study.
+            onClick={() => openDeckPicker(shown, 'word')}
+          >
+            Add to Deck
+          </button>
+        </div>
+      )}
     </Modal>
   );
 }
