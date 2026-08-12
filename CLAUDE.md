@@ -177,3 +177,22 @@ KanJutsu is a language-learning product, not just a coding exercise. Study featu
 (scheduling, quiz formats, progress) should be grounded in language-acquisition research
 (spaced repetition, retrieval practice, interleaving) and informed by how Anki / WaniKani
 / Bunpro handle the same problems. Use the `content-strategist` agent.
+
+## Agent skills
+Repo config that installed skills (`/to-tickets`, `/triage`, `/to-spec`,
+`/wayfinder`, …) read before acting. Distinct from the subagents above.
+
+### Issue tracker
+
+Issues live in GitHub Issues on `bkelly466/KanJutsu`, managed with the `gh` CLI.
+See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles, using the default label strings.
+See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root.
+See `docs/agents/domain.md`.
