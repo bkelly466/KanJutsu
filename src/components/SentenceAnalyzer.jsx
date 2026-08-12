@@ -44,6 +44,18 @@ export default function SentenceAnalyzer() {
   const [selectedToken, setSelectedToken] = useState(null);
   // A kanji being explored from inside that overlay, or null.
   const [drilledKanji, setDrilledKanji] = useState(null);
+  // Which entry the user picked from "Other entries" (a lemma can be several
+  // words), or null for the best match. It lives here rather than inside the
+  // overlay because drilling a kanji unmounts the overlay and mounts it again
+  // — state kept in there would silently throw the choice away.
+  const [selectedEntryId, setSelectedEntryId] = useState(null);
+
+  // Open the overlay on a Token. Any entry chosen for the previous Token is
+  // meaningless for this one, so it resets here.
+  const handleTokenClick = (token) => {
+    setSelectedEntryId(null);
+    setSelectedToken(token);
+  };
 
   // Warm the Lambda up the moment the tab opens. It carries a 12.5 MB
   // dictionary, so a cold start costs ~1.2 s against 2-3 ms warm — firing this
@@ -73,6 +85,7 @@ export default function SentenceAnalyzer() {
     setError('');
     // A new Sentence retires whatever was being looked up in the old one.
     setSelectedToken(null);
+    setSelectedEntryId(null);
     setDrilledKanji(null);
     // Drop the previous results before the new request. Leaving them up would
     // show the breakdown of the OLD sentence underneath the new one if this
@@ -170,7 +183,7 @@ export default function SentenceAnalyzer() {
           {/* Counts every Token, including punctuation, so the number matches
               what's actually on screen — a user can count them. */}
           <p className="text-muted small text-center mb-3">
-            Broken into {tokens.length} pieces. Tap one to look it up.
+            Broken into {tokens.length} pieces. Tap any word to look it up.
           </p>
 
           {/* Wraps onto as many lines as it needs; `keep-all` stops a single
@@ -193,12 +206,16 @@ export default function SentenceAnalyzer() {
                   type="button"
                   className="btn btn-light border rounded px-2 py-1 d-flex flex-column justify-content-center"
                   // Bootstrap's padding alone leaves a single-kana Token around
-                  // 34px tall; 44px is the minimum comfortable touch target in
-                  // both Apple's and Android's guidelines (see .touch-target in
-                  // App.css, which can't be used here — it centres its content
-                  // in a row, which would put 行きました and → 行く side by side).
-                  style={{ minHeight: '44px' }}
-                  onClick={() => setSelectedToken(token)}
+                  // 34px square; 44px is the minimum comfortable touch target
+                  // in both Apple's and Android's guidelines. Both axes matter:
+                  // the narrowest Tokens are the particles (は, を, に), which
+                  // stand alone precisely BECAUSE they're what a beginner taps.
+                  //
+                  // Written inline rather than with App.css's .touch-target,
+                  // which sets the same floor but also centres its content in a
+                  // row — that would put 行きました and → 行く side by side.
+                  style={{ minHeight: '44px', minWidth: '44px' }}
+                  onClick={() => handleTokenClick(token)}
                   // The visible text is the Surface form, so the dictionary form
                   // has to be spoken for a screen reader to reach it at all.
                   aria-label={
@@ -241,9 +258,18 @@ export default function SentenceAnalyzer() {
       ) : (
         selectedToken && (
           <TokenInfoModal
+            // Keying by the Token forces a remount when a different one is
+            // opened, so the overlay can never render a new word's heading
+            // above the previous word's definition while the lookup is in
+            // flight. Cheaper and safer than resetting four state slices by
+            // hand — a component whose state is ABOUT a subject should be
+            // keyed by that subject.
+            key={`${selectedToken.surface}:${selectedToken.baseForm}`}
             token={selectedToken}
             onClose={() => setSelectedToken(null)}
             onKanjiClick={setDrilledKanji}
+            selectedId={selectedEntryId}
+            onSelectEntry={setSelectedEntryId}
           />
         )
       )}

@@ -41,6 +41,12 @@ const cache = new Map();
  * A failed lookup is deliberately NOT cached — otherwise a single blip would
  * make that word permanently un-lookupable for the rest of the session, and the
  * retry button in the overlay would do nothing.
+ *
+ * The one case this can't rescue: a Jisho hiccup that returns 200 with an empty
+ * body is indistinguishable from a word that genuinely has no entry, so it IS
+ * cached and sticks until the page is reloaded. Accepted — telling the two
+ * apart would mean second-guessing a successful response, and "no entry" has to
+ * stay a cheap, cacheable answer because plenty of Tokens really have none.
  */
 export function lookUpToken(lemma) {
   const key = (lemma ?? '').trim();

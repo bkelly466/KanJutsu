@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { lookUpToken, pickPrimaryEntry } from '../api/tokenLookup';
 import { renderWithClickableKanji } from '../utils/clickableKanji';
 import { extractKanji } from '../api/kanji';
+import EntryBody from './EntryBody';
 import Modal from './Modal';
 
 /**
@@ -24,10 +25,16 @@ import Modal from './Modal';
  *     dictionary entry, but 山 and 田 do.
  *
  * Props:
- *   token        - the Token that was tapped: { surface, baseForm, isUnknown }
- *   onClose      - dismiss the overlay
- *   onKanjiClick - called with a single kanji character; the Sentence tab swaps
- *                  this overlay for the kanji explorer (see SentenceAnalyzer)
+ *   token          - the Token that was tapped: { surface, baseForm, isUnknown }
+ *   onClose        - dismiss the overlay
+ *   onKanjiClick   - called with a single kanji character; the Sentence tab
+ *                    swaps this overlay for the kanji explorer (SentenceAnalyzer)
+ *   selectedId     - id of the entry the user chose from "Other entries", or
+ *                    null for the best match. Owned by SentenceAnalyzer because
+ *                    it has to survive this component unmounting: drilling a
+ *                    kanji swaps the overlay out and back, and a choice the user
+ *                    made shouldn't be quietly undone by that.
+ *   onSelectEntry  - called with an entry id when the user picks one
  */
 
 /**
@@ -37,16 +44,18 @@ import Modal from './Modal';
  */
 const MAX_ALTERNATIVES = 5;
 
-export default function TokenInfoModal({ token, onClose, onKanjiClick }) {
+export default function TokenInfoModal({
+  token,
+  onClose,
+  onKanjiClick,
+  selectedId,
+  onSelectEntry,
+}) {
   const lemma = token.baseForm;
 
   const [entries, setEntries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  // Which of several entries the user chose to read. null = show the best
-  // match. Derived at render time rather than synced into state, so nothing has
-  // to keep it in step with `entries`.
-  const [selectedId, setSelectedId] = useState(null);
   // Bumped by "Try again" to re-run the effect below. A failed lookup isn't
   // cached (see tokenLookup.js), so this really does retry the request.
   const [attempt, setAttempt] = useState(0);
@@ -87,13 +96,18 @@ export default function TokenInfoModal({ token, onClose, onKanjiClick }) {
   };
 
   // The entry on screen: whichever the user picked, else the best match.
+  // Derived at render time rather than synced into state, so nothing has to
+  // keep it in step with `entries`.
   const primary = pickPrimaryEntry(entries, lemma);
   const shown = entries.find((entry) => entry.id === selectedId) ?? primary;
   const alternatives = entries
     .filter((entry) => entry.id !== shown?.id)
     .slice(0, MAX_ALTERNATIVES);
 
-  const hasKanji = extractKanji(token.surface).length > 0;
+  // Both strings, because IPADIC often gives a kanji lemma for a kana surface
+  // form — できる arrives with baseForm 出来る, and 出 and 来 are drillable even
+  // though nothing in the Sentence was written in kanji.
+  const hasKanji = extractKanji(token.surface + lemma).length > 0;
 
   return (
     <Modal onClose={onClose} size="lg" scrollable>
@@ -171,35 +185,11 @@ export default function TokenInfoModal({ token, onClose, onKanjiClick }) {
               </div>
             )}
 
-            {shown.reading && shown.reading !== shown.word && (
-              <div lang="ja" className="fs-5 text-muted mb-2">
-                {shown.reading}
-              </div>
-            )}
-
-            <div className="d-flex flex-wrap gap-2 mb-3">
-              {shown.isCommon && <span className="badge bg-success">common word</span>}
-              {shown.jlpt?.map((level) => (
-                <span key={level} className="badge bg-secondary">
-                  JLPT {level}
-                </span>
-              ))}
-            </div>
-
-            {/* Senses, matching WordDetailCard's layout so the two surfaces
-                read as one product. */}
-            <ol className="ps-3 mb-0">
-              {shown.senses.map((sense, index) => (
-                <li key={index} className="mb-3">
-                  {sense.partsOfSpeech.length > 0 && (
-                    <div className="text-body-secondary fst-italic small mb-1">
-                      {sense.partsOfSpeech.join(', ')}
-                    </div>
-                  )}
-                  <div className="fs-5">{sense.definitions.join('; ')}</div>
-                </li>
-              ))}
-            </ol>
+            {/* Reading, badges, verb forms and senses — the same component the
+                Dictionary tab's WordDetailCard renders, so the two surfaces
+                can't drift apart. The verb-forms block is the reason that
+                matters here: this is exactly where a learner meets 行きました. */}
+            <EntryBody entry={shown} />
 
             {/* Homographs are common enough that hiding them would be a lie:
                 one lemma can be several words. Tapping one swaps what's shown
@@ -213,7 +203,7 @@ export default function TokenInfoModal({ token, onClose, onKanjiClick }) {
                       key={entry.id}
                       type="button"
                       className="btn btn-sm btn-outline-secondary"
-                      onClick={() => setSelectedId(entry.id)}
+                      onClick={() => onSelectEntry(entry.id)}
                     >
                       <span lang="ja">{entry.word}</span>
                       {entry.reading && entry.reading !== entry.word && (
