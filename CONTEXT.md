@@ -76,6 +76,16 @@ review schedule. Two Cards built from the same Entry in different Decks are
 independent and are scheduled separately.
 _Avoid_: flashcard, item, note
 
+**Card key**:
+The stable identity of the thing a Card was built from — the kanji itself for a
+kanji Card, `word::reading` for a word Card. Two Cards with the same Card key are
+the same study material, which is what makes "this Deck already has it" a
+question we can answer. It identifies the *source*, not the Card: the same Card
+key appears once per Deck, and those Cards are still scheduled independently.
+In code it is `cardKey` on the `Card` model and `key` on a UI card; `sourceKey()`
+derives one from a lookup result and `getCardKey()` reads one off a Card.
+_Avoid_ **in prose**: card id, dedupe key, fingerprint, unique key.
+
 **Deck**:
 A named, owner-scoped collection of Cards. The unit a user studies.
 _Avoid_: collection, set, list

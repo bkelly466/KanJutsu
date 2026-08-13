@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getCardsForReview } from '../utils/srs';
+import { writeFailureMessage } from '../utils/writeFailure';
 import { CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR } from '../constants/categories';
 import { useNavigation } from '../context/navigationContext';
 import { useDecksContext } from '../context/decksContext';
@@ -14,21 +15,41 @@ export default function DeckList() {
   const [showCreate, setShowCreate] = useState(false);
   const [editingDeck, setEditingDeck] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  // Create and edit used to close their modal and lean on the app-level banner,
+  // which no longer reports writes — so a failure is shown here, on the deck
+  // list itself. Those two close first on purpose: CreateDeckModal has no busy
+  // state, so leaving it open during the round trip leaves a live submit button
+  // that a second tap would fire again.
+  const [actionError, setActionError] = useState('');
+  // Delete is the exception — see handleDelete.
+  const [deleteError, setDeleteError] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleCreate = async (deckData) => {
-    await createDeck(deckData);
-    // Close either way; any failure is shown via the error banner.
     setShowCreate(false);
+    const result = await createDeck(deckData);
+    setActionError(result.ok ? '' : writeFailureMessage(result, "Couldn't create that deck. Please try again."));
   };
 
-  const handleEdit = (deckData) => {
-    updateDeck(editingDeck.id, deckData);
+  const handleEdit = async (deckData) => {
+    const deckId = editingDeck.id;
     setEditingDeck(null);
+    const result = await updateDeck(deckId, deckData);
+    setActionError(result.ok ? '' : writeFailureMessage(result, "Couldn't save those changes. Please try again."));
   };
 
-  const handleDelete = (deckId) => {
-    deleteDeck(deckId);
-    setConfirmDelete(null);
+  // Unlike create and edit, this one keeps its modal open until the write
+  // succeeds, and reports failure INSIDE it — the rule CardDetailModal already
+  // follows: a confirmation box disappearing reads as "done". Closing it on a
+  // failed delete would leave the deck sitting in a list the user believes
+  // they just emptied, with the explanation scrolled off the top of the page.
+  const handleDelete = async (deckId) => {
+    setIsDeleting(true);
+    setDeleteError('');
+    const result = await deleteDeck(deckId);
+    if (result.ok) setConfirmDelete(null);
+    else setDeleteError(writeFailureMessage(result, "Couldn't delete that deck. Please try again."));
+    setIsDeleting(false);
   };
 
   return (
@@ -39,6 +60,15 @@ export default function DeckList() {
           + New Deck
         </button>
       </div>
+
+      {/* role="alert" matches the convention in App.jsx and CardDetailModal.jsx,
+          so a failure is announced rather than only seen. */}
+      {actionError && (
+        <div className="alert alert-warning alert-dismissible d-flex justify-content-between align-items-center" role="alert">
+          <span>{actionError}</span>
+          <button type="button" className="btn-close" aria-label="Dismiss" onClick={() => setActionError('')}></button>
+        </div>
+      )}
 
       {decks.length === 0 ? (
         <div className="text-center py-5 text-muted">
@@ -142,17 +172,32 @@ export default function DeckList() {
         // closeOnBackdrop={false} preserves this modal's existing behaviour —
         // it never had a backdrop click handler. That matters more on touch,
         // where a stray tap outside a destructive confirm is easy to make.
-        <Modal size="sm" closeOnBackdrop={false} onClose={() => setConfirmDelete(null)}>
+        <Modal size="sm" closeOnBackdrop={false} onClose={() => { setConfirmDelete(null); setDeleteError(''); }}>
           <div className="modal-body text-center py-4">
             <p className="fw-semibold mb-1">Delete &quot;{confirmDelete.name}&quot;?</p>
             <p className="text-muted small">This will remove the deck and all {confirmDelete.cards.length} cards.</p>
+            {/* Inside the modal, never the list behind it — this box is what's
+                on screen, so it has to be what carries the bad news. */}
+            {deleteError && (
+              <div className="alert alert-warning py-2 small mb-0 mt-3" role="alert">
+                {deleteError}
+              </div>
+            )}
           </div>
           <div className="modal-footer border-0 justify-content-center gap-2">
-            <button className="btn btn-outline-secondary btn-sm touch-target" onClick={() => setConfirmDelete(null)}>
+            <button
+              className="btn btn-outline-secondary btn-sm touch-target"
+              onClick={() => { setConfirmDelete(null); setDeleteError(''); }}
+              disabled={isDeleting}
+            >
               Cancel
             </button>
-            <button className="btn btn-danger btn-sm touch-target" onClick={() => handleDelete(confirmDelete.id)}>
-              Delete
+            <button
+              className="btn btn-danger btn-sm touch-target"
+              onClick={() => handleDelete(confirmDelete.id)}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting…' : 'Delete'}
             </button>
           </div>
         </Modal>
