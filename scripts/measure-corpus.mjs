@@ -12,7 +12,7 @@
  * recorded in an ADR with its date, not proof of anything.
  *
  * Run through vite-node rather than plain node, because it exercises the REAL
- * app modules — `analyzeSentence` and `lookUpToken`, extensionless imports,
+ * app modules — `analyzeSentence` and `resolveToken`, extensionless imports,
  * `amplify_outputs.json` and `import.meta.env` and all. A reimplementation here
  * would measure this script rather than the app.
  *
@@ -183,6 +183,9 @@ for (const { sentence } of CORPUS) {
         pos: token.pos,
         topResult,
         shownLemma,
+        // Whether there was anything to fall back to, so a 'none' can be
+        // reported as the right kind of miss — see the listing at the bottom.
+        hadFallback: Boolean(token.fallbackBaseForm),
         surfaces: new Set(),
         sentences: new Set(),
       };
@@ -276,12 +279,20 @@ if (unresolved.length > 0) {
     // and code review caught it.
     const occurrences = tokenRecords.filter((t) => t.lemma === lemma).length;
     const surfaces = [...record.surfaces].join(', ');
+    // 'none' covers two different misses, and they call for different work: one
+    // is the dictionary's coverage, the other says the fallback rule itself
+    // didn't reach. This text gets transcribed into ADR-0003, so it has to name
+    // the right one.
+    const noEntry = record.hadFallback
+      ? 'no results, and its fallback didn’t answer either'
+      : 'no results, and nothing to fall back to';
+
     const detail =
       record.status === 'partial'
         ? `top result ${record.topResult}`
         : record.status === 'fallback'
           ? `no entry of its own — fell back to ${record.shownLemma}`
-          : 'no results, and nothing to fall back to';
+          : noEntry;
     console.log(
       `  ${lemma}  [${record.pos || '?'}]  ${occurrences} Token(s), as: ${surfaces}  — ${detail}`,
     );

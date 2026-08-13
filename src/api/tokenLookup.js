@@ -1,7 +1,7 @@
 /**
  * Looking a Token up in the dictionary.
  *
- * This sits on top of src/api/words.js and adds the two things a *sentence*
+ * This sits on top of src/api/words.js and adds the three things a *sentence*
  * lookup needs that a search-box lookup doesn't:
  *
  *   1. It searches the Token's lemma with deinflection turned OFF. The analyzer
@@ -112,6 +112,19 @@ export function lookUpToken(lemma) {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Is this Entry the one the lemma names?
+ *
+ * Reading counts as well as Headword, so a kana lemma finds its kanji Entry
+ * (こと → 事). One definition, used by both `answersFor` below and
+ * `pickPrimaryEntry` at the bottom of the file: the two must never drift, since
+ * one decides whether a fallback is trustworthy and the other decides what that
+ * fallback then shows.
+ */
+function matchesLemma(entry, lemma) {
+  return entry.word === lemma || entry.reading === lemma;
+}
+
+/**
  * Does anything in `entries` actually answer for `lemma`?
  *
  * Stricter than "did the dictionary return something", and deliberately so: a
@@ -127,7 +140,7 @@ export function lookUpToken(lemma) {
  * would agree with it even when both were wrong.
  */
 function answersFor(entries, lemma) {
-  return entries.some((entry) => entry.word === lemma || entry.reading === lemma);
+  return entries.some((entry) => matchesLemma(entry, lemma));
 }
 
 /**
@@ -182,12 +195,15 @@ function decide(lemma, fallbackLemma, primary, fallback) {
 export async function resolveToken(lemma, fallbackLemma) {
   const primary = await lookUpToken(lemma);
 
-  // `??` and not an if/else: when the first call answers, the second operand is
-  // never evaluated and the fallback request is never made.
-  return (
-    decide(lemma, fallbackLemma, primary, undefined) ??
-    decide(lemma, fallbackLemma, primary, await lookUpToken(fallbackLemma))
-  );
+  // Ask first whether the answer is already settled. It is for every Token but
+  // the one this feature exists for, and returning here is what keeps the
+  // ordinary tap at exactly one request.
+  const settled = decide(lemma, fallbackLemma, primary, undefined);
+  if (settled) return settled;
+
+  // Only reachable when the lookup came back empty AND this Token has a lemma
+  // to fall back to.
+  return decide(lemma, fallbackLemma, primary, await lookUpToken(fallbackLemma));
 }
 
 /**
@@ -195,15 +211,18 @@ export async function resolveToken(lemma, fallbackLemma) {
  * `null` when they aren't. Safe during render; never starts a request.
  *
  * Same purpose as `peekTokenEntries`: let the overlay mount in its final state
- * instead of blinking through "Looking up…". A Token whose fallback hasn't been
- * looked up yet is genuinely not known, so it reports null and gets a spinner.
+ * instead of blinking through "Looking up…". A Token whose own lemma came back
+ * empty and whose fallback hasn't been looked up yet is genuinely not known, so
+ * it reports null and gets a spinner. One whose own lemma resolved is a settled
+ * answer immediately — the fallback is never consulted, here or anywhere.
  */
 export function peekResolvedToken(lemma, fallbackLemma) {
   const primary = peekTokenEntries(lemma);
-  return (
-    decide(lemma, fallbackLemma, primary, undefined) ??
-    decide(lemma, fallbackLemma, primary, peekTokenEntries(fallbackLemma))
-  );
+
+  const settled = decide(lemma, fallbackLemma, primary, undefined);
+  if (settled) return settled;
+
+  return decide(lemma, fallbackLemma, primary, peekTokenEntries(fallbackLemma));
 }
 
 /** Empty the cache. Exists for tests; nothing in the app needs it. */
@@ -225,6 +244,6 @@ export function clearTokenLookupCache() {
  */
 export function pickPrimaryEntry(entries, lemma) {
   if (!Array.isArray(entries) || entries.length === 0) return null;
-  const exact = entries.find((entry) => entry.word === lemma || entry.reading === lemma);
+  const exact = entries.find((entry) => matchesLemma(entry, lemma));
   return exact ?? entries[0];
 }

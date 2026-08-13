@@ -244,8 +244,9 @@ silent. Three properties are what make this safe rather than merely helpful:
   any string, and showing those under a heading saying "showing 光" would trade
   an honest "no entry" for a confident wrong answer. A name like 山田 carries no
   fallback at all and is untouched.
-- **The overlay reads from the lemma it actually resolved**, so the heading, the
-  Entry and the card "Add to Deck" builds can't describe different words.
+- **The overlay reads from the lemma it actually resolved**, so the Entry on
+  screen and the card "Add to Deck" builds are the same Entry, and the heading
+  names the lemma they came from.
 
 An error is not an empty result: a failed request still surfaces "Try again"
 rather than quietly answering with the head word.

@@ -36,7 +36,8 @@ import Modal from './Modal';
  *     came from is deliberately NOT carried onto the card (see issue #22).
  *
  * Props:
- *   token          - the Token that was tapped: { surface, baseForm, isUnknown }
+ *   token          - the Token that was tapped:
+ *                    { surface, baseForm, isUnknown, fallbackBaseForm }
  *   onClose        - dismiss the overlay
  *   onKanjiClick   - called with a single kanji character; the Sentence tab
  *                    swaps this overlay for the kanji explorer (SentenceAnalyzer)
@@ -88,13 +89,12 @@ export default function TokenInfoModal({
   // answer is an object, and its `entries` may still be empty: "looked up, and
   // this word has no entry" is a real answer, not a loading state.
   //
-  // Both arguments are FUNCTIONS: useState's lazy initialiser form runs only on
-  // the first render. Passing the values directly would re-read the cache on
-  // every render for a result React throws away.
+  // The argument is a FUNCTION: useState's lazy initialiser form runs only on
+  // the first render. Passing the value directly would re-read the cache on
+  // every render for a result React throws away. `isLoading` derives from the
+  // same peek rather than repeating it, so the two can't start out disagreeing.
   const [result, setResult] = useState(() => peekResolvedToken(lemma, fallbackLemma));
-  const [isLoading, setIsLoading] = useState(
-    () => peekResolvedToken(lemma, fallbackLemma) === null,
-  );
+  const [isLoading, setIsLoading] = useState(result === null);
   const [error, setError] = useState('');
   // Bumped by "Try again" to re-run the effect below. A failed lookup isn't
   // cached (see tokenLookup.js), so this really does retry the request.
@@ -138,8 +138,8 @@ export default function TokenInfoModal({
   // What the lookup settled on. `shownLemma` is the word the entries are
   // actually FOR — the Token's own lemma normally, the lemma it was built from
   // when the fallback fired — and everything below reads from it rather than
-  // from `lemma`, so the heading, the entry and the "Add to Deck" card can't
-  // describe different words.
+  // from `lemma`, so the Entry on screen and the card "Add to Deck" builds are
+  // never for a word the heading didn't name.
   const entries = result?.entries ?? [];
   const shownLemma = result?.lemma ?? lemma;
   const usedFallback = result?.usedFallback ?? false;

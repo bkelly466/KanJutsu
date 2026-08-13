@@ -206,6 +206,22 @@ describe('resolveToken', () => {
     expect(searchWords).toHaveBeenCalledTimes(2);
   });
 
+  it('does not fall back when the Token’s own lemma returned anything at all', async () => {
+    // The rule is "empty result", not "no exact match". 勉強する is the shape
+    // that makes the difference: Jisho files it under 勉強, so the search
+    // returns the right entry without matching the lemma string. That's still a
+    // result for the word the user tapped — they asked for it — and second-
+    // guessing it would spend a request to answer a question nobody asked.
+    // (chunk.js gives a サ変 merge no fallback today; the fallback is passed
+    // here to assert the rule rather than to describe a real Token.)
+    stubDictionary({ 勉強する: [entry('勉強', 'べんきょう')], 勉強: [entry('勉強', 'べんきょう')] });
+
+    const result = await resolveToken('勉強する', '勉強');
+
+    expect(result.usedFallback).toBe(false);
+    expect(searchWords).toHaveBeenCalledTimes(1);
+  });
+
   it('leaves an ordinary unknown word as a dead end', async () => {
     // 山田 carries no fallback — chunk.js sets one only where a derivational
     // suffix was absorbed — so this must behave exactly as it did before.
@@ -286,6 +302,22 @@ describe('peekResolvedToken', () => {
       lemma: '東京',
       usedFallback: true,
     });
+  });
+
+  it('answers from the Token’s own lemma without consulting the fallback', async () => {
+    stubDictionary({ 子供たち: [entry('子供たち', 'こどもたち')] });
+
+    await lookUpToken('子供たち');
+
+    // The synchronous half of "no extra request on success": if this waited for
+    // the fallback it would report null, and the overlay would flash "Looking
+    // up…" on every re-mount of a Token that had resolved perfectly well.
+    expect(peekResolvedToken('子供たち', '子供')).toEqual({
+      entries: [entry('子供たち', 'こどもたち')],
+      lemma: '子供たち',
+      usedFallback: false,
+    });
+    expect(searchWords).toHaveBeenCalledTimes(1);
   });
 
   it('reports a settled dead end without waiting for anything', async () => {
