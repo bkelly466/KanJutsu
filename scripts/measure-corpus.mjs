@@ -4,29 +4,23 @@
  *   npx ampx sandbox          # must be running / deployed first
  *   npm run measure-corpus
  *
- * This is a MEASUREMENT, not a test, and it deliberately cannot run in CI: the
- * suite is offline (every fetch is stubbed), so "does this Token actually
- * resolve in Jisho?" — the claim the whole chunking rule rests on — is exactly
- * the question the tests are unable to ask. It follows the precedent of the
- * 55-word deinflection corpus in ADR-0002: evidence that a rule generalises,
- * recorded in an ADR with its date, not proof of anything.
+ * A MEASUREMENT, not a test, and it cannot run in CI: the suite is offline, so
+ * "does this Token actually resolve in Jisho?" — the claim the chunking rule
+ * rests on — is exactly the question the tests can't ask. Evidence that a rule
+ * generalises, recorded in an ADR with its date; not proof. Same precedent as
+ * the deinflection corpus in ADR-0002.
  *
- * Run through vite-node rather than plain node, because it exercises the REAL
- * app modules — `analyzeSentence` and `resolveToken`, extensionless imports,
- * `amplify_outputs.json` and `import.meta.env` and all. A reimplementation here
- * would measure this script rather than the app.
+ * Through vite-node rather than plain node, so it drives the REAL app modules —
+ * extensionless imports, `amplify_outputs.json`, `import.meta.env` and all. A
+ * reimplementation here would measure this script rather than the app.
  *
- * `npm run measure-corpus` passes the Jisho proxy URL in as VITE_JISHO_PROXY_URL
- * — the same variable amplify.yml sets at build — because `jishoProxy.js` reads
- * it at import time, so it has to exist before any import runs. That makes the
- * npm script POSIX-shell-only (fine on macOS/Linux, not on cmd.exe); if the
- * outputs file is missing it substitutes an empty string and the guard below
- * explains what to do.
+ * `npm run measure-corpus` passes VITE_JISHO_PROXY_URL in, the same variable
+ * amplify.yml sets at build, because jishoProxy.js reads it at import time. That
+ * makes the npm script POSIX-shell-only.
  *
  * Sentences come from the recorded fixtures rather than a list of their own, so
- * the measured corpus and the tested corpus cannot drift apart. Only the
- * sentence strings are used — the analyzer is called live, as the point is to
- * measure the live path end to end.
+ * the measured and tested corpora can't drift apart. Only the strings are used;
+ * the analyzer is called live, since the point is to measure the live path.
  */
 
 import { readFileSync } from 'node:fs';
@@ -37,24 +31,19 @@ import { resolveToken } from '../src/api/tokenLookup.js';
 import { JISHO_PROXY } from '../src/api/jishoProxy.js';
 
 /**
- * How long to wait between lookups.
+ * How long to wait between lookups. Two reasons, the second measured here
+ * rather than assumed:
  *
- * Two reasons, and the second one was measured here rather than assumed:
+ *   1. This account's Lambda concurrency ceiling is 10, shared with the
+ *      dictionary's own proxy, so a measurement run must not be able to starve
+ *      the live app. Hence strictly sequential.
+ *   2. **Jisho throttles rapid requests.** At 60 ms, 23 of 101 lemmas came back
+ *      as proxy 502s — and because errors are excluded from the denominator,
+ *      that would have *inflated* the rate. Probing 16 words gave 5/16 failures
+ *      at 60 ms, 3/16 at 150 ms, 0/16 at both 250 ms and 800 ms. 350 ms sits
+ *      past that knee. See ADR-0003, "Method note".
  *
- *   1. The Lambda concurrency ceiling on this account is 10, shared by every
- *      function including the dictionary's own proxy (see HANDOFF). A
- *      measurement run must not be capable of starving the live app, so this
- *      walks the corpus strictly sequentially.
- *
- *   2. **Jisho throttles rapid requests.** The first run of this script used a
- *      60 ms pause and 23 of 101 lemmas came back as proxy 502s ("Jisho API
- *      returned an error"), which would have been silently excluded from the
- *      rate and flattered it. Probing the same 16 words at four spacings gave
- *      5/16 failures at 60 ms, 3/16 at 150 ms, and 0/16 at both 250 ms and
- *      800 ms. 350 ms sits comfortably past that knee.
- *
- * `lookUpToken` caches by lemma, so a word appearing in five sentences still
- * costs one request and one pause.
+ * `lookUpToken` caches by lemma, so a word in five sentences costs one request.
  */
 const PAUSE_MS = 350;
 
@@ -67,10 +56,9 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /* Guards — a measurement that cannot measure must fail, not report 0.0%      */
 /* -------------------------------------------------------------------------- */
 
-// Tested as "is a real URL" rather than "isn't the dev path", because the npm
-// script substitutes an empty string when amplify_outputs.json is missing the
-// key, and `fetch('?keyword=…')` on a relative string throws a stack trace
-// instead of saying what's wrong.
+// "Is a real URL" rather than "isn't the dev path": the npm script substitutes
+// an empty string when the key is missing, and a relative `fetch` throws a
+// stack trace instead of saying what's wrong.
 if (!/^https?:\/\//.test(JISHO_PROXY)) {
   console.error(
     'No usable Jisho proxy URL.\n' +
@@ -80,10 +68,9 @@ if (!/^https?:\/\//.test(JISHO_PROXY)) {
   process.exit(1);
 }
 
-// The analyzer URL is read by src/api/sentence.js, which quietly falls back to
-// '' — so check it here the way record-corpus.mjs does. Without this the run
-// dies on the first sentence with "check your connection", copy written for a
-// user on a flaky phone, which points a developer at entirely the wrong thing.
+// src/api/sentence.js falls back to '' quietly, so without this the run dies on
+// the first sentence with "check your connection" — copy written for a user on
+// a flaky phone, pointing a developer at entirely the wrong thing.
 const outputs = JSON.parse(readFileSync(new URL('../amplify_outputs.json', import.meta.url)));
 if (!outputs.custom?.sentenceAnalyzerUrl) {
   console.error('No sentenceAnalyzerUrl in amplify_outputs.json — run `npx ampx sandbox` first.');
@@ -91,18 +78,15 @@ if (!outputs.custom?.sentenceAnalyzerUrl) {
 }
 
 /**
- * Did the dictionary come back with the word we actually asked for?
+ * Did the dictionary return the word actually asked for? Stricter than "did
+ * Jisho return anything": a search for a non-word usually returns entries that
+ * merely start with the string, and counting those would flatter the chunking
+ * rule by exactly the failure mode it exists to prevent. Reading counts, so
+ * こと → 事 is a hit.
  *
- * Deliberately stricter than "did Jisho return anything". A search for a
- * non-word usually returns *something* — entries that merely start with the
- * string — and counting those as a hit would flatter the chunking rule by
- * exactly the failure mode it exists to prevent. Reading counts as a match, so
- * a kana lemma resolving to a kanji entry (こと → 事) is a hit.
- *
- * Kept as its own copy rather than imported from tokenLookup.js, which applies
- * the same test when deciding whether to accept a fallback: a measurement that
- * borrowed its yardstick from the code being measured would agree with it even
- * when both were wrong.
+ * A deliberate duplicate of tokenLookup.js's `matchesLemma` — a measurement
+ * that borrowed its yardstick from the code under measurement would agree with
+ * it even when both were wrong. See ADR-0003.
  */
 function isExactMatch(entries, lemma) {
   return entries.some((entry) => entry.word === lemma || entry.reading === lemma);
@@ -137,11 +121,10 @@ for (const { sentence } of CORPUS) {
       // The lemma the entries turned out to be FOR — the Token's own, or the
       // one it was built from when the fallback fired (issue #30).
       let shownLemma = lemma;
-      // RETRY: one second attempt after a long pause, because a throttled 502
-      // says something about Jisho's rate limiting and nothing about whether
-      // the Token resolves — and an error excluded from the denominator
-      // quietly inflates the headline number, which is the one way this
-      // measurement could lie.
+      // One retry after a long pause: a throttled 502 says something about
+      // Jisho's rate limiting and nothing about whether the Token resolves,
+      // and an error excluded from the denominator inflates the headline —
+      // the one way this measurement could lie.
       for (let attempt = 0; attempt < 2; attempt += 1) {
         // Reset per attempt: a first-attempt error message must not survive
         // into a second attempt that succeeded.
@@ -155,10 +138,9 @@ for (const { sentence } of CORPUS) {
           shownLemma = resolved.lemma;
 
           if (entries.length === 0) status = 'none';
-          // Counted apart from 'exact' on purpose: the Token DID reach a useful
-          // Entry, but not the one its own lemma names, and lumping the two
-          // together would hide the merged compounds the dictionary doesn't
-          // carry — the very thing this measurement found last time.
+          // Apart from 'exact' on purpose: the Token DID reach a useful Entry,
+          // just not the one its own lemma names. Lumping them together would
+          // hide the merged compounds the dictionary doesn't carry.
           else if (resolved.usedFallback) status = 'fallback';
           else if (isExactMatch(entries, lemma)) status = 'exact';
           else {
@@ -173,11 +155,10 @@ for (const { sentence } of CORPUS) {
         }
       }
 
-      // `pos` is the FIRST occurrence's tag. Verified against this corpus: no
-      // lemma appears under two different parts of speech, so the breakdown
-      // below is unambiguous. A lemma like よう (名詞/非自立 here, plausibly
-      // 助動詞 elsewhere) would be filed under whichever came first — re-check
-      // if the corpus grows.
+      // The FIRST occurrence's tag. Unambiguous against this corpus, where no
+      // lemma appears under two parts of speech — but a lemma like よう (名詞/
+      // 非自立 here, plausibly 助動詞 elsewhere) would be filed under whichever
+      // came first. Re-check if the corpus grows.
       record = {
         status,
         pos: token.pos,
@@ -218,19 +199,19 @@ const tokenExact = count(tokensMeasured, 'exact');
 const lemmaExact = count(lemmasMeasured, 'exact');
 
 console.log(`Corpus: ${CORPUS.length} sentences, ${tokenRecords.length} tappable Tokens, ${lemmas.size} distinct lemmas`);
-// Local date, not toISOString's UTC one: this line exists to be transcribed
-// into the ADR next to a commit, and an evening run in the Americas would
-// otherwise be dated tomorrow. 'en-CA' is the locale that formats as YYYY-MM-DD.
+// Local date, not toISOString's UTC one: this line gets transcribed into the
+// ADR next to a commit, and an evening run in the Americas would otherwise be
+// dated tomorrow. 'en-CA' formats as YYYY-MM-DD.
 console.log(`Measured ${new Date().toLocaleDateString('en-CA')}\n`);
 
-// Token-weighted first: it's what a learner experiences, since common words
-// are tapped more often than rare ones.
+// Token-weighted first: common words are tapped more often than rare ones, so
+// this is what a learner experiences.
 console.log('By Token (what a learner meets):');
 console.log(`  resolved exactly   ${tokenExact}/${tokensMeasured.length}  (${pct(tokenExact, tokensMeasured.length)}%)`);
 console.log(`  via head fallback  ${count(tokensMeasured, 'fallback')}`);
 console.log(`  results, no match  ${count(tokensMeasured, 'partial')}`);
-// The number issue #30 is about: a tap that opens the overlay and shows the
-// learner nothing. Everything above it puts SOME entry on screen.
+// The headline failure: a tap that opens the overlay and shows nothing.
+// Everything above this line puts SOME entry on screen.
 console.log(`  dead-end taps      ${count(tokensMeasured, 'none')}`);
 
 console.log('\nBy distinct lemma (what the rule is asked to do):');

@@ -1,51 +1,29 @@
 /**
- * Jisho API Proxy — Lambda handler
+ * Jisho API Proxy — Lambda handler. Jisho sends no CORS headers permitting
+ * browser requests, so the app calls this instead, and it fetches server-side.
  *
- * Why this exists:
- *   Jisho (jisho.org) doesn't send CORS headers that allow browser requests.
- *   So we can't call it directly from the React app. Instead, the app calls
- *   this Lambda, which runs server-side (no CORS restriction applies), fetches
- *   from Jisho, and returns the result.
+ * Reached through a public Function URL, given to the frontend as
+ * VITE_JISHO_PROXY_URL at build time. Local dev uses the Vite dev proxy on
+ * /api/jishoapi instead.
  *
- * How it's reached:
- *   This Lambda has a "Function URL" — a public HTTPS endpoint AWS creates for
- *   it. The frontend is given that URL via the VITE_JISHO_PROXY_URL env var at
- *   build time. Locally, the Vite dev proxy still handles /api/jishoapi instead.
- *
- * Event format:
- *   Lambda Function URLs send an event that looks like an API Gateway HTTP API
- *   (payload format v2). The query string comes in as
- *   event.queryStringParameters, e.g. { keyword: "日" }.
+ * Function URLs send an API Gateway HTTP API v2-shaped event, so the query
+ * string arrives as `event.queryStringParameters`.
  */
 
-// LambdaFunctionURLEvent is the TypeScript type for the event object Lambda
-// receives when invoked via a Function URL. It's imported from @types/aws-lambda,
-// which is already installed as a transitive dependency of the Amplify backend
-// toolchain — no need to install it separately.
-//
-// APIGatewayProxyResultV2 is the return type: an object with statusCode,
-// headers, and a body string that Lambda turns back into an HTTP response.
 import type { LambdaFunctionURLEvent, APIGatewayProxyResultV2 } from 'aws-lambda';
 
 const JISHO_API_BASE = 'https://jisho.org/api/v1/search/words';
 
-/**
- * Main Lambda handler.
- * AWS calls this function for every request to the Function URL.
- *
- * @param event - Contains the incoming HTTP request details (method, headers,
- *                query string, body). We only care about queryStringParameters.
- * @returns An object that Lambda turns into an HTTP response (statusCode +
- *          headers + body string).
- */
 export const handler = async (
   event: LambdaFunctionURLEvent
 ): Promise<APIGatewayProxyResultV2> => {
 
-  // CORS headers — the Lambda Function URL is on a different origin
-  // (*.lambda-url.*.on.aws) than the Amplify Hosting domain. Without these
-  // headers the browser will block the response. We allow any origin here
-  // because this is a read-only proxy for public Jisho data.
+  // The Function URL is on a different origin from Amplify Hosting, so the
+  // browser blocks the response without these. Any origin is allowed: a
+  // read-only proxy for public Jisho data.
+  //
+  // Here and ONLY here — backend.ts sets no `cors` block, because configuring
+  // both produces duplicated headers that browsers reject.
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -53,15 +31,13 @@ export const handler = async (
     'Content-Type': 'application/json',
   };
 
-  // Handle the browser's preflight OPTIONS request (part of the CORS protocol).
-  // The browser sends this before a cross-origin GET to check if it's allowed.
+  // The browser's CORS preflight, sent before the real cross-origin GET.
   const method = event.requestContext?.http?.method;
   if (method === 'OPTIONS') {
     return { statusCode: 200, headers: corsHeaders, body: '' };
   }
 
-  // This is a read-only proxy: only GET is supported. Reject anything else
-  // rather than silently forwarding it to Jisho (which we always call as a GET).
+  // Read-only, so anything but GET is rejected rather than forwarded to Jisho.
   if (method && method !== 'GET') {
     return {
       statusCode: 405,
@@ -70,11 +46,10 @@ export const handler = async (
     };
   }
 
-  // Pull the keyword out of the query string, e.g. /api/jishoapi?keyword=日
   const keyword = event.queryStringParameters?.keyword;
 
-  // Require a keyword, and cap its length so a giant string can't make us burn
-  // Lambda time on a doomed Jisho request. Real lookups are a handful of chars.
+  // Capped so a giant string can't burn Lambda time on a doomed Jisho request.
+  // Real lookups are a handful of characters.
   if (!keyword || keyword.length > 200) {
     return {
       statusCode: 400,
@@ -100,9 +75,6 @@ export const handler = async (
     return {
       statusCode: 200,
       headers: corsHeaders,
-      // JSON.stringify turns the Jisho response object into a string that Lambda
-      // sends back as the HTTP response body. The client does JSON.parse via
-      // response.json() in fetchCommonWords.
       body: JSON.stringify(data),
     };
   } catch (err) {

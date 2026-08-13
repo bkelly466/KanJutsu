@@ -1,14 +1,7 @@
 /**
- * Amplify Gen 2 function definition for the Jisho proxy.
- *
- * `defineFunction` is the Amplify Gen 2 way to declare a Lambda function.
- * Under the hood it creates an AWS Lambda backed by the handler.ts file in
- * this directory.
- *
- * The `entry` option tells Amplify where the handler code lives.
- * The `timeoutSeconds` is bumped from the 3-second default to 10 because
- * we make an outbound HTTP request to Jisho inside the Lambda — that can
- * take a few seconds, especially cold-start.
+ * The Jisho proxy Lambda. 10 seconds rather than the 3-second default, because
+ * this makes an outbound request to Jisho, which can take a few seconds on a
+ * cold start.
  */
 import { defineFunction } from '@aws-amplify/backend';
 
