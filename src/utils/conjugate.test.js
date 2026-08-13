@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectVerbClass, getVerbForms } from './conjugate';
 
-// Helper: build a minimal normalised word entry with a verb part-of-speech.
+// A minimal normalised word entry carrying one verb part-of-speech.
 const word = (w, r, pos) => ({
   word: w,
   reading: r,

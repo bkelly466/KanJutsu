@@ -1,27 +1,18 @@
 /**
- * Describing a failed Deck or Card write to the user.
+ * Describing a failed Deck or Card write to the user — two ends of one
+ * decision, what went wrong and what to say about it.
  *
- * Two jobs, both pure, and deliberately in one module because they're two ends
- * of the same decision — what went wrong, and what to say about it:
+ * Only the data layer can tell an expired Cognito session from an ordinary
+ * network failure; only the call site knows which button was pressed.
  *
- *   1. `classifyWriteFailure` turns whatever the Amplify client threw into a
- *      code plus a sentence that is always safe to put on screen. Only the data
- *      layer can tell an expired Cognito session from an ordinary network
- *      failure, so only the data layer can classify it.
- *
- *   2. `writeFailureMessage` decides whose wording wins at the call site. A
- *      component knows which button was pressed ("Couldn't save your
- *      definition"); the data layer knows the user is signed out. The second
- *      beats the first, because it's the only one that tells them what to DO.
- *
- * This lives in utils/ rather than api/ so the dependency runs api → utils, the
- * direction the rest of the codebase already uses (api/sentence.js → utils/chunk.js).
+ * In utils/ rather than api/ so the dependency runs api → utils, matching
+ * api/sentence.js → utils/chunk.js.
  */
 
 /**
- * The user's Cognito session is gone. Actionable: they can fix this.
- * Kept distinct from every other failure precisely BECAUSE it's actionable —
- * "please try again" is guaranteed to fail while signed out.
+ * The user's Cognito session is gone. Kept distinct from every other failure
+ * because it is the one the user can act on — "please try again" is guaranteed
+ * to fail while signed out.
  */
 export const SESSION_EXPIRED = 'session-expired';
 
@@ -29,9 +20,9 @@ export const SESSION_EXPIRED = 'session-expired';
 export const SYNC_FAILED = 'sync-failed';
 
 /**
- * The Amplify client reports an expired/absent session with several different
- * strings depending on where the failure surfaces, so match on all of them.
- * Lowercased before testing, so these stay lowercase.
+ * Substrings identifying an expired or absent session. The Amplify client
+ * words it differently depending on where the failure surfaces, hence several.
+ * Matched against lowercased text, so these stay lowercase.
  */
 const AUTH_FAILURE_PATTERNS = [
   'nosigneduser',
@@ -41,10 +32,8 @@ const AUTH_FAILURE_PATTERNS = [
 ];
 
 /**
- * Classify a thrown error into `{ code, message }`.
- *
- * `message` is copy that can go straight in front of the user — the convention
- * src/api/words.js and src/api/sentence.js already follow.
+ * Classify a thrown error into `{ code, message }`, where `message` is always
+ * safe to put in front of the user.
  *
  * @param {unknown} cause  whatever was thrown
  */
@@ -67,13 +56,10 @@ export function classifyWriteFailure(cause) {
 /**
  * What to show the user for a failed write.
  *
- * Returns the data layer's message when it knows something the caller can't
- * (an expired session), and the caller's own action-specific copy otherwise —
- * "Couldn't restore the original definition" says which of three buttons failed,
- * where a generic sync message wouldn't.
- *
- * Falls back to `fallback` for a malformed or missing result, so a caller can
- * never end up rendering `undefined` at the user.
+ * Prefers the data layer's message when it knows something the caller can't (an
+ * expired session), otherwise the caller's own action-specific copy. Returns
+ * `fallback` for a malformed or missing result, so a caller can never render
+ * `undefined` at the user.
  *
  * @param {{code?: string, error?: string}} result   a write result from useDecks
  * @param {string} fallback                          the caller's own copy
