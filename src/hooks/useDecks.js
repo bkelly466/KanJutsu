@@ -3,17 +3,13 @@ import * as api from '../api/decks';
 import { SYNC_FAILED } from '../utils/writeFailure';
 
 /**
- * Cloud-backed decks: React state around src/api/decks.js.
+ * Cloud-backed decks: React state around src/api/decks.js, which owns every
+ * AppSync call and the AWSJSON rule. What's left here is what genuinely needs
+ * React — state, the load effect, the signed-out reset, and turning a thrown
+ * error into something renderable.
  *
- * Everything that talks to AppSync — and the AWSJSON rule that goes with it —
- * lives in that module, which is a plain module so it can be tested. What's
- * left here is the part that genuinely needs React: state, the load effect, the
- * signed-out reset, and turning a thrown error into something a component can
- * render.
- *
- * Reads happen through `list()` and re-run after every mutation. That keeps the
- * UI reliably in sync — a new deck shows without a refresh — and is simpler and
- * more predictable than live subscriptions.
+ * Reads go through `list()` and re-run after every mutation: simpler and more
+ * predictable than live subscriptions, and a new deck shows without a refresh.
  *
  * @param {boolean} enabled  Only load/mutate when the user is signed in.
  */
@@ -27,15 +23,14 @@ export function useDecks(enabled) {
   const loadData = useCallback(async () => {
     try {
       setDecks(await api.listDecks());
-      // Clear on success. Without this one transient blip pins the banner for
-      // the rest of the session, even after ten successful refetches.
+      // Without this, one transient blip pins the banner for the rest of the
+      // session, through any number of successful refetches.
       setError(null);
     } catch (e) {
       console.error('Failed to load decks:', e);
       // The one failure with no call site to report it — nobody pressed a
-      // button — so it goes to the app-level banner in App.jsx. Writes do NOT
-      // set this: they report through their own result, so a single failure is
-      // never announced twice in two different sentences.
+      // button — so it goes to App.jsx's banner. Writes do NOT set this; they
+      // report through their own result, so nothing is announced twice.
       setError(e.message);
     } finally {
       setIsLoading(false);
@@ -55,35 +50,29 @@ export function useDecks(enabled) {
   }, [enabled, loadData]);
 
   /**
-   * Run one write.
+   * Run one write: call the module, re-fetch so the UI reflects the change,
+   * translate a failure into something renderable. One result shape for all
+   * eight writes, so a caller learns it once.
    *
-   * Every mutation is the same three steps — call the module, re-fetch so the
-   * UI reflects the change, translate a failure into something renderable — so
-   * they're written once here rather than eight times below and eight more
-   * times across the components. A caller learns this one result shape and gets
-   * all eight writes.
-   *
-   * Always resolves, never rejects: several callers fire a write without
-   * awaiting it, and a rejected promise there would be an unhandled rejection.
+   * Always resolves, never rejects — several callers fire a write without
+   * awaiting it, where a rejection would be an unhandled promise rejection.
    *
    * @returns {{ok: boolean, error: string|null, code: string|null, data: any}}
    */
   const run = async (label, write) => {
     try {
       const data = (await write()) ?? null;
-      // If the write lands but this refetch doesn't, the result still reports
-      // success — because the write DID succeed — and loadData puts its own
-      // failure in the banner. Those aren't contradictory: "added" and "we
-      // couldn't re-read your decks" are both true, and the banner is exactly
-      // where a failed read belongs.
+      // A write that lands while this refetch fails still reports success,
+      // because it did succeed; loadData puts its own failure in the banner.
+      // "Added" and "couldn't re-read your decks" are both true.
       await loadData();
       return { ok: true, error: null, code: null, data };
     } catch (e) {
       console.error(`${label} failed:`, e);
-      // `code` is set by api/decks.js. The `??`s cover a genuinely unexpected
-      // throw (a bug in our own code, not a failed request), which is still a
-      // sync failure as far as the user is concerned — and keep this function's
-      // "never rejects" promise from depending on what a caller threw.
+      // `code` comes from api/decks.js. The `??`s cover a genuinely unexpected
+      // throw — a bug here rather than a failed request — which is still a sync
+      // failure to the user, and keep the "never rejects" promise from
+      // depending on what was thrown.
       return {
         ok: false,
         error: e?.message ?? 'Something went wrong. Please try again.',
@@ -94,19 +83,17 @@ export function useDecks(enabled) {
   };
 
   /**
-   * A Deck's own Cards, which three of the writes need for their dedupe and
-   * cascade rules. The module takes them as an argument rather than fetching
-   * them, so this is where they're supplied from state.
+   * A Deck's own Cards, for the three writes whose dedupe and cascade rules
+   * need them. api/decks.js takes them as an argument rather than fetching, so
+   * this is where they come from state.
    */
   const cardsOf = (deckId) => decks.find((deck) => deck.id === deckId)?.cards ?? [];
 
   return {
-    // Gated during RENDER, not in the effect above, and that distinction is the
-    // whole point: an effect runs after the browser paints, so gating there
-    // would show one frame of the previous user's decks on sign-out — including
-    // the due-count badge in App.jsx, which sits outside the auth gate. It also
-    // covers a `list()` still in flight when the session ends, which would
-    // otherwise land in state after the effect had already cleared it.
+    // Gated during RENDER, not in the effect above. An effect runs after paint,
+    // so gating there shows one frame of the previous user's decks on sign-out,
+    // including App.jsx's due-count badge, which sits outside the auth gate.
+    // It also covers a `list()` still in flight when the session ends.
     decks: enabled ? decks : [],
     isLoading,
     error,
