@@ -110,6 +110,11 @@ Lambda now emits as `posDetail2` for this single purpose. Inflectional marking
 (助動詞, 動詞/接尾) leaves the lemma alone regardless, so 食べさせられた still
 searches 食べる.
 
+A derivational merge can build a word the dictionary doesn't carry even when the
+rule is right — 東京駅 is a word, and Jisho has no entry for it. Those Tokens
+carry the head's lemma as `fallbackBaseForm` so the lookup has somewhere to go;
+see "Limitation, now handled" below.
+
 ### Known rough edges, accepted
 
 - **Splitting on particles leaves some non-word surfaces.** しなけれ in
@@ -163,11 +168,19 @@ corpus against the live API by hand and measures how many Tokens resolve to an
 Entry. It is a measurement, not a test, and like the 55-word deinflection corpus
 it is evidence the rule generalises, not proof.
 
-### Measured hit rate — 2026-08-12
+### Measured hit rate — 2026-08-12 (re-run after the #30 fallback shipped)
 
 **97.3% of Tokens resolve exactly** (179 of 184 tappable Tokens across the
 32-sentence corpus; 97 of 101 distinct lemmas, 96.0%). Punctuation is excluded,
 since it is rendered but never tappable.
+
+**And no Token is a dead-end tap: 184 of 184 now put an Entry on screen.** The
+exact rate is unchanged by #30 — a fallback resolves the Token, not its lemma,
+so the script counts it separately and the headline stays honest. What changed
+is the number that matters to a learner: 東京駅 used to open an overlay saying
+there was nothing, and now shows 東京 with both words named. The four remaining
+"results, no match" Tokens have always shown the right entry as Jisho's top
+result (see the list below).
 
 "Resolve" is deliberately strict: the dictionary must return an Entry whose
 Headword **or** Reading *is* the lemma. Counting "Jisho returned something"
@@ -200,26 +213,42 @@ softer than the number suggests:
   definition; not a miss on screen.
 - **ぐらい** (1 lemma, 1 Token) — Jisho's headword is くらい, of which ぐらい is
   a variant reading. Top result is again the correct entry.
-- **東京駅** (1 lemma, 1 Token) — **the only true dead end in the corpus.** Jisho
-  has no 東京駅 entry at all, so the overlay says there is none. This is the
-  derivational-suffix rule (東京 + 駅 → look up the compound) doing exactly what
-  it was designed to do and finding that the dictionary doesn't carry the
-  compound. Recorded as a limitation below.
+- **東京駅** (1 lemma, 1 Token) — was **the only true dead end in the corpus**,
+  and is the one #30 fixed. Jisho has no 東京駅 entry at all, so the overlay said
+  there was none. That was the derivational-suffix rule (東京 + 駅 → look up the
+  compound) doing exactly what it was designed to do and finding the dictionary
+  doesn't carry the compound. It now falls back to 東京; see below.
 
-So: **1 dead-end tap in 184**, and 4 more where the top result is right but the
+So: **0 dead-end taps in 184**, and 4 where the top result is right but the
 Headword isn't string-identical to the lemma.
 
-### Limitation: a merged compound the dictionary doesn't carry
+### Limitation, now handled: a merged compound the dictionary doesn't carry
 
 東京駅 is the shape to watch — a proper noun plus a 接尾/一般 suffix. The merge
 is right for the *reading* (東京駅 is one word on the page) and right for
 子供たち, which resolves; it just outruns Jisho's entry list for place names.
 
-The fix, when it's worth doing, is a **fallback to the head morpheme's lemma**
-when the merged lookup returns nothing: tap 東京駅, get 東京 with the Surface
-form still shown above it. That costs a second request only in the case that
-already failed. Deliberately not done in #24, which is a measurement ticket —
-tracked separately so it isn't lost.
+**Fixed in #30 by falling back to the head morpheme's lemma** when the merged
+lookup returns nothing: tap 東京駅, get 東京, with the Surface form still above
+it and a line naming both words, so the substitution is visible rather than
+silent. Three properties are what make this safe rather than merely helpful:
+
+- **It costs nothing in the normal case.** `chunk.js` sets `fallbackBaseForm`
+  only where a derivational suffix was absorbed (two Tokens in this corpus:
+  東京駅 and 子供たち), and `resolveToken` requests it only after an empty
+  result — the case that had already failed. 子供たち resolves, so it never
+  fires there.
+- **A dead end stays a dead end.** The fallback is accepted only if an entry
+  actually answers for the head lemma — Headword *or* Reading identical, the
+  same strict test this measurement uses. Jisho returns *something* for almost
+  any string, and showing those under a heading saying "showing 光" would trade
+  an honest "no entry" for a confident wrong answer. A name like 山田 carries no
+  fallback at all and is untouched.
+- **The overlay reads from the lemma it actually resolved**, so the heading, the
+  Entry and the card "Add to Deck" builds can't describe different words.
+
+An error is not an empty result: a failed request still surfaces "Try again"
+rather than quietly answering with the head word.
 
 ### Method note: Jisho throttles sustained request rates
 

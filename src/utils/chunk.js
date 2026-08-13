@@ -120,6 +120,10 @@ function acceptsCopula(headPos) {
  * Getting this wrong doesn't corrupt the visible text — 山田さん is the right
  * span to show — it just makes the tap a dead end, which the learner would read
  * as the app being broken rather than the word being absent.
+ *
+ * Getting it *right* can still dead-end: 東京駅 is genuinely a word, and Jisho
+ * still has no entry for it. That's what `fallbackBaseForm` is for — see the
+ * merge loop.
  */
 const NON_DERIVATIONAL_SUFFIXES = new Set(['人名', '助数詞']);
 
@@ -176,6 +180,9 @@ function startToken(morpheme) {
     // IPADIC didn't recognise it. Still tappable: the lookup may find nothing,
     // but the user can drill its kanji.
     isUnknown: Boolean(morpheme.isUnknown),
+    // A second lemma to try if `baseForm` finds nothing — see the merge loop
+    // below. null for almost every Token; only a derivational merge sets it.
+    fallbackBaseForm: null,
   };
 }
 
@@ -241,7 +248,17 @@ export function chunk(morphemes) {
       open.surface += morpheme.surface;
       // A derivational suffix makes a new word, so the whole thing becomes the
       // lookup string. Inflection and honorifics leave the head's lemma alone.
-      if (isDerivationalSuffix(morpheme)) open.baseForm = open.surface;
+      if (isDerivationalSuffix(morpheme)) {
+        open.baseForm = open.surface;
+        // …but the dictionary may not carry the compound this rule just built.
+        // 子供たち resolves; 東京駅 does not, and Jisho has no entry for it at
+        // all, which made that tap a dead end (issue #30). Remembering the head
+        // lemma lets the lookup fall back to 東京 — the word the compound is
+        // built from, and a genuinely useful answer — instead of showing
+        // nothing. Always the HEAD's lemma, never a partially-merged string, so
+        // a second suffix (東京駅前) still falls back to 東京.
+        open.fallbackBaseForm = head.baseForm;
+      }
       continue;
     }
 

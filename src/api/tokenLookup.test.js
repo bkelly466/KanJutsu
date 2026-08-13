@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   lookUpToken,
   peekTokenEntries,
+  resolveToken,
+  peekResolvedToken,
   clearTokenLookupCache,
   pickPrimaryEntry,
 } from './tokenLookup';
@@ -155,6 +157,147 @@ describe('peekTokenEntries', () => {
     clearTokenLookupCache();
 
     expect(peekTokenEntries('本')).toBeUndefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Falling back to the head lemma (issue #30)                                 */
+/* -------------------------------------------------------------------------- */
+
+/** Answer each lemma with its own entries; anything unlisted has none. */
+function stubDictionary(byLemma) {
+  searchWords.mockImplementation(async (query) => ({
+    results: byLemma[query] ?? [],
+    resolvedFrom: null,
+  }));
+}
+
+describe('resolveToken', () => {
+  it('returns the Token’s own entries, and never asks for the fallback', async () => {
+    stubDictionary({ 子供たち: [entry('子供たち', 'こどもたち')] });
+
+    const result = await resolveToken('子供たち', '子供');
+
+    expect(result).toEqual({
+      entries: [entry('子供たち', 'こどもたち')],
+      lemma: '子供たち',
+      usedFallback: false,
+    });
+    // The whole point of doing this after an empty result rather than before:
+    // the common case must cost exactly the one request it always did.
+    expect(searchWords).toHaveBeenCalledTimes(1);
+    expect(searchWords).toHaveBeenCalledWith('子供たち', { allowDeinflection: false });
+  });
+
+  it('falls back to the head lemma when the merged compound has no entry', async () => {
+    // The motivating case: chunk.js merges 東京 + 駅 and searches 東京駅, which
+    // Jisho has no entry for at all. 東京 is a real and useful answer.
+    stubDictionary({ 東京: [entry('東京', 'とうきょう')] });
+
+    const result = await resolveToken('東京駅', '東京');
+
+    expect(result).toEqual({
+      entries: [entry('東京', 'とうきょう')],
+      // The lemma the entries are FOR, so the overlay can say which word it is
+      // showing rather than silently answering a different question.
+      lemma: '東京',
+      usedFallback: true,
+    });
+    expect(searchWords).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves an ordinary unknown word as a dead end', async () => {
+    // 山田 carries no fallback — chunk.js sets one only where a derivational
+    // suffix was absorbed — so this must behave exactly as it did before.
+    stubDictionary({});
+
+    const result = await resolveToken('山田', null);
+
+    expect(result).toEqual({ entries: [], lemma: '山田', usedFallback: false });
+    expect(searchWords).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays a dead end when the fallback finds nothing either', async () => {
+    stubDictionary({});
+
+    const result = await resolveToken('架空駅', '架空');
+
+    // Reported under the word that was tapped, not the one we tried second —
+    // "no entry for 架空" would name a word the learner never asked about.
+    expect(result).toEqual({ entries: [], lemma: '架空駅', usedFallback: false });
+  });
+
+  it('refuses a fallback that does not answer for the head lemma', async () => {
+    // Jisho returns *something* for almost any string — usually entries that
+    // merely start with it. Showing those under a heading saying "showing 光"
+    // would turn a clean dead end into a confident wrong answer.
+    stubDictionary({ 光: [entry('光ファイバー', 'ひかりファイバー')] });
+
+    const result = await resolveToken('光駅', '光');
+
+    expect(result).toEqual({ entries: [], lemma: '光駅', usedFallback: false });
+  });
+
+  it('accepts a fallback that matches on reading alone', async () => {
+    // Same rule pickPrimaryEntry uses: a kana lemma resolving to a kanji entry
+    // is a match, not a near miss.
+    stubDictionary({ こども: [entry('子供', 'こども')] });
+
+    const result = await resolveToken('こども駅', 'こども');
+
+    expect(result.usedFallback).toBe(true);
+    expect(result.entries).toEqual([entry('子供', 'こども')]);
+  });
+
+  it('propagates a failure rather than falling back on it', async () => {
+    // An error is not an empty result. Falling back here would answer a network
+    // blip with the wrong word instead of offering "Try again".
+    searchWords.mockRejectedValue(new Error('Word lookup failed. Please try again.'));
+
+    await expect(resolveToken('東京駅', '東京')).rejects.toThrow('Word lookup failed');
+  });
+});
+
+describe('peekResolvedToken', () => {
+  it('is null until the lookup has settled', () => {
+    expect(peekResolvedToken('東京駅', '東京')).toBeNull();
+  });
+
+  it('is still null when the compound came back empty but the fallback has not run', async () => {
+    stubDictionary({ 東京: [entry('東京', 'とうきょう')] });
+
+    await lookUpToken('東京駅');
+
+    // Half an answer is not an answer: reporting the empty result here would
+    // flash "No dictionary entry for 東京駅" before the fallback arrived.
+    expect(peekTokenEntries('東京駅')).toEqual([]);
+    expect(peekResolvedToken('東京駅', '東京')).toBeNull();
+  });
+
+  it('reports the fallback once both halves are known', async () => {
+    stubDictionary({ 東京: [entry('東京', 'とうきょう')] });
+
+    await resolveToken('東京駅', '東京');
+
+    // Re-opening the overlay (closing the deck picker, drilling a kanji and
+    // coming back) must land on the Entry, not on a spinner.
+    expect(peekResolvedToken('東京駅', '東京')).toEqual({
+      entries: [entry('東京', 'とうきょう')],
+      lemma: '東京',
+      usedFallback: true,
+    });
+  });
+
+  it('reports a settled dead end without waiting for anything', async () => {
+    stubDictionary({});
+
+    await resolveToken('山田', null);
+
+    expect(peekResolvedToken('山田', null)).toEqual({
+      entries: [],
+      lemma: '山田',
+      usedFallback: false,
+    });
   });
 });
 

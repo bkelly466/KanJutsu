@@ -33,7 +33,7 @@ import { readFileSync } from 'node:fs';
 
 import { CORPUS } from '../src/api/sentence.fixtures.js';
 import { analyzeSentence } from '../src/api/sentence.js';
-import { lookUpToken } from '../src/api/tokenLookup.js';
+import { resolveToken } from '../src/api/tokenLookup.js';
 import { JISHO_PROXY } from '../src/api/jishoProxy.js';
 
 /**
@@ -98,6 +98,11 @@ if (!outputs.custom?.sentenceAnalyzerUrl) {
  * string — and counting those as a hit would flatter the chunking rule by
  * exactly the failure mode it exists to prevent. Reading counts as a match, so
  * a kana lemma resolving to a kanji entry (こと → 事) is a hit.
+ *
+ * Kept as its own copy rather than imported from tokenLookup.js, which applies
+ * the same test when deciding whether to accept a fallback: a measurement that
+ * borrowed its yardstick from the code being measured would agree with it even
+ * when both were wrong.
  */
 function isExactMatch(entries, lemma) {
   return entries.some((entry) => entry.word === lemma || entry.reading === lemma);
@@ -129,6 +134,9 @@ for (const { sentence } of CORPUS) {
     if (!record) {
       let status;
       let topResult = '';
+      // The lemma the entries turned out to be FOR — the Token's own, or the
+      // one it was built from when the fallback fired (issue #30).
+      let shownLemma = lemma;
       // RETRY: one second attempt after a long pause, because a throttled 502
       // says something about Jisho's rate limiting and nothing about whether
       // the Token resolves — and an error excluded from the denominator
@@ -138,9 +146,20 @@ for (const { sentence } of CORPUS) {
         // Reset per attempt: a first-attempt error message must not survive
         // into a second attempt that succeeded.
         topResult = '';
+        shownLemma = lemma;
         try {
-          const entries = await lookUpToken(lemma);
+          // The same call the overlay makes, fallback and all, so this measures
+          // what a learner actually gets rather than the raw lookup.
+          const resolved = await resolveToken(lemma, token.fallbackBaseForm);
+          const entries = resolved.entries;
+          shownLemma = resolved.lemma;
+
           if (entries.length === 0) status = 'none';
+          // Counted apart from 'exact' on purpose: the Token DID reach a useful
+          // Entry, but not the one its own lemma names, and lumping the two
+          // together would hide the merged compounds the dictionary doesn't
+          // carry — the very thing this measurement found last time.
+          else if (resolved.usedFallback) status = 'fallback';
           else if (isExactMatch(entries, lemma)) status = 'exact';
           else {
             status = 'partial';
@@ -159,7 +178,14 @@ for (const { sentence } of CORPUS) {
       // below is unambiguous. A lemma like よう (名詞/非自立 here, plausibly
       // 助動詞 elsewhere) would be filed under whichever came first — re-check
       // if the corpus grows.
-      record = { status, pos: token.pos, topResult, surfaces: new Set(), sentences: new Set() };
+      record = {
+        status,
+        pos: token.pos,
+        topResult,
+        shownLemma,
+        surfaces: new Set(),
+        sentences: new Set(),
+      };
       lemmas.set(lemma, record);
       await sleep(PAUSE_MS);
     }
@@ -189,19 +215,26 @@ const tokenExact = count(tokensMeasured, 'exact');
 const lemmaExact = count(lemmasMeasured, 'exact');
 
 console.log(`Corpus: ${CORPUS.length} sentences, ${tokenRecords.length} tappable Tokens, ${lemmas.size} distinct lemmas`);
-console.log(`Measured ${new Date().toISOString().slice(0, 10)}\n`);
+// Local date, not toISOString's UTC one: this line exists to be transcribed
+// into the ADR next to a commit, and an evening run in the Americas would
+// otherwise be dated tomorrow. 'en-CA' is the locale that formats as YYYY-MM-DD.
+console.log(`Measured ${new Date().toLocaleDateString('en-CA')}\n`);
 
 // Token-weighted first: it's what a learner experiences, since common words
 // are tapped more often than rare ones.
 console.log('By Token (what a learner meets):');
 console.log(`  resolved exactly   ${tokenExact}/${tokensMeasured.length}  (${pct(tokenExact, tokensMeasured.length)}%)`);
+console.log(`  via head fallback  ${count(tokensMeasured, 'fallback')}`);
 console.log(`  results, no match  ${count(tokensMeasured, 'partial')}`);
-console.log(`  nothing at all     ${count(tokensMeasured, 'none')}`);
+// The number issue #30 is about: a tap that opens the overlay and shows the
+// learner nothing. Everything above it puts SOME entry on screen.
+console.log(`  dead-end taps      ${count(tokensMeasured, 'none')}`);
 
 console.log('\nBy distinct lemma (what the rule is asked to do):');
 console.log(`  resolved exactly   ${lemmaExact}/${lemmasMeasured.length}  (${pct(lemmaExact, lemmasMeasured.length)}%)`);
+console.log(`  via head fallback  ${count(lemmasMeasured, 'fallback')}`);
 console.log(`  results, no match  ${count(lemmasMeasured, 'partial')}`);
-console.log(`  nothing at all     ${count(lemmasMeasured, 'none')}`);
+console.log(`  dead-end taps      ${count(lemmasMeasured, 'none')}`);
 
 const errors = [...lemmas.entries()].filter(([, r]) => r.status === 'error');
 if (errors.length > 0) {
@@ -231,11 +264,11 @@ for (const [pos, { total, exact }] of [...byPos.entries()].sort((a, b) => b[1].t
 }
 
 const unresolved = [...lemmas.entries()]
-  .filter(([, record]) => record.status === 'none' || record.status === 'partial')
+  .filter(([, record]) => record.status !== 'exact' && record.status !== 'error')
   .sort(([, a], [, b]) => (a.pos || '').localeCompare(b.pos || ''));
 
 if (unresolved.length > 0) {
-  console.log('\nEvery lemma that did not resolve — read this list, do not just take the number:');
+  console.log('\nEvery lemma that did not resolve to its own Entry — read this list, do not just take the number:');
   for (const [lemma, record] of unresolved) {
     // The Token count is printed so the ADR write-up can be TRANSCRIBED rather
     // than reconstructed by hand. Getting it wrong by hand is not theoretical:
@@ -243,7 +276,12 @@ if (unresolved.length > 0) {
     // and code review caught it.
     const occurrences = tokenRecords.filter((t) => t.lemma === lemma).length;
     const surfaces = [...record.surfaces].join(', ');
-    const detail = record.status === 'partial' ? `top result ${record.topResult}` : 'no results';
+    const detail =
+      record.status === 'partial'
+        ? `top result ${record.topResult}`
+        : record.status === 'fallback'
+          ? `no entry of its own — fell back to ${record.shownLemma}`
+          : 'no results, and nothing to fall back to';
     console.log(
       `  ${lemma}  [${record.pos || '?'}]  ${occurrences} Token(s), as: ${surfaces}  — ${detail}`,
     );
