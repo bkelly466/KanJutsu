@@ -1,7 +1,7 @@
 /**
  * Looking a Token up in the dictionary.
  *
- * This sits on top of src/api/words.js and adds the two things a *sentence*
+ * This sits on top of src/api/words.js and adds the three things a *sentence*
  * lookup needs that a search-box lookup doesn't:
  *
  *   1. It searches the Token's lemma with deinflection turned OFF. The analyzer
@@ -13,6 +13,10 @@
  *   2. It caches by lemma. A learner working through a sentence taps the same
  *      word twice constantly (は appears three times in a long sentence), and
  *      re-opening the overlay must not cost another round trip.
+ *
+ *   3. It falls back to the lemma a merged compound was built from, when the
+ *      compound itself has no entry — tap 東京駅, get 東京. See `resolveToken`
+ *      at the bottom of this file, and issue #30.
  *
  * Lookups happen on tap and are never prefetched across the Sentence: a
  * 20-Token sentence would otherwise fire 20 requests the moment it was
@@ -103,6 +107,124 @@ export function lookUpToken(lemma) {
   return pending;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Falling back to the head lemma                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Is this Entry the one the lemma names?
+ *
+ * Reading counts as well as Headword, so a kana lemma finds its kanji Entry
+ * (こと → 事). One definition, used by both `answersFor` below and
+ * `pickPrimaryEntry` at the bottom of the file: the two must never drift, since
+ * one decides whether a fallback is trustworthy and the other decides what that
+ * fallback then shows.
+ */
+function matchesLemma(entry, lemma) {
+  return entry.word === lemma || entry.reading === lemma;
+}
+
+/**
+ * Does anything in `entries` actually answer for `lemma`?
+ *
+ * Stricter than "did the dictionary return something", and deliberately so: a
+ * search for a non-word usually returns entries that merely *start* with the
+ * string. That's tolerable for the word the user tapped — they asked for it —
+ * but not for a fallback they didn't, where a loosely related entry under a
+ * heading saying "showing 東京" would be a confident wrong answer. Better a
+ * clean "no entry" than that (issue #30).
+ *
+ * Reading counts, so a kana lemma matching a kanji entry (こと → 事) is a match.
+ * scripts/measure-corpus.mjs keeps its own copy of this test on purpose — a
+ * measurement that imported its own yardstick from the code under measurement
+ * would agree with it even when both were wrong.
+ */
+function answersFor(entries, lemma) {
+  return entries.some((entry) => matchesLemma(entry, lemma));
+}
+
+/**
+ * Decide what to show, given what each lookup came back with.
+ *
+ * Pure, and shared by the async and the synchronous paths below so the two can
+ * never disagree about the same pair of answers. `undefined` for either
+ * argument means "not looked up"; the return is **null** when the answer isn't
+ * known yet and the caller has to go and find out.
+ *
+ * Returns `{ entries, lemma, usedFallback }` — `lemma` being the word the
+ * entries are actually FOR, which is what the overlay puts on screen.
+ */
+function decide(lemma, fallbackLemma, primary, fallback) {
+  // Nothing settled yet for the word itself; the fallback can't matter.
+  if (primary === undefined) return null;
+
+  // The normal case, and the one that must cost no extra request.
+  if (primary.length > 0) return { entries: primary, lemma, usedFallback: false };
+
+  // No entry, and nothing to fall back to — an ordinary dead end (a name, slang,
+  // an unrecognised word). This is the great majority of empty results, and it
+  // keeps the honest "no dictionary entry" state it has always had.
+  if (!fallbackLemma) return { entries: [], lemma, usedFallback: false };
+
+  if (fallback === undefined) return null;
+
+  // The head lemma has to genuinely resolve, or we're better off saying nothing.
+  if (!answersFor(fallback, fallbackLemma)) return { entries: [], lemma, usedFallback: false };
+
+  return { entries: fallback, lemma: fallbackLemma, usedFallback: true };
+}
+
+/**
+ * Look a Token up, falling back to the lemma it was built from.
+ *
+ * `chunk.js` merges a derivational suffix into the word before it and searches
+ * the compound — 東京 + 駅 looks up 東京駅. That's right for how the word reads
+ * on the page, and right for 子供たち, which resolves. It just outruns Jisho's
+ * entry list for place names: 東京駅 has no entry at all, so the tap dead-ended
+ * (issue #30). Only those Tokens carry a `fallbackBaseForm`, so this fires
+ * nowhere else.
+ *
+ * The second request happens **only** after the first came back empty — which
+ * is exactly the case that had already failed — and both halves go through
+ * `lookUpToken`, so each lemma is still cached and requested once.
+ *
+ * Resolves with `{ entries, lemma, usedFallback }`. `lemma` is the word the
+ * entries are for: the Token's own lemma normally, the head lemma when the
+ * fallback fired. Rejects like `lookUpToken` on network/HTTP failure.
+ */
+export async function resolveToken(lemma, fallbackLemma) {
+  const primary = await lookUpToken(lemma);
+
+  // Ask first whether the answer is already settled. It is for every Token but
+  // the one this feature exists for, and returning here is what keeps the
+  // ordinary tap at exactly one request.
+  const settled = decide(lemma, fallbackLemma, primary, undefined);
+  if (settled) return settled;
+
+  // Only reachable when the lookup came back empty AND this Token has a lemma
+  // to fall back to.
+  return decide(lemma, fallbackLemma, primary, await lookUpToken(fallbackLemma));
+}
+
+/**
+ * What `resolveToken` would resolve with, if both halves are already known —
+ * `null` when they aren't. Safe during render; never starts a request.
+ *
+ * Same purpose as `peekTokenEntries`: let the overlay mount in its final state
+ * instead of blinking through "Looking up…". A Token whose own lemma came back
+ * empty and whose fallback hasn't been looked up yet is genuinely not known, so
+ * it reports null and gets a spinner. One whose own lemma resolved is a settled
+ * answer immediately — the fallback is never consulted, here or anywhere.
+ */
+export function peekResolvedToken(lemma, fallbackLemma) {
+  const primary = peekTokenEntries(lemma);
+
+  const settled = decide(lemma, fallbackLemma, primary, undefined);
+  if (settled) return settled;
+
+  return decide(lemma, fallbackLemma, primary, peekTokenEntries(fallbackLemma));
+}
+
 /** Empty the cache. Exists for tests; nothing in the app needs it. */
 export function clearTokenLookupCache() {
   cache.clear();
@@ -122,6 +244,6 @@ export function clearTokenLookupCache() {
  */
 export function pickPrimaryEntry(entries, lemma) {
   if (!Array.isArray(entries) || entries.length === 0) return null;
-  const exact = entries.find((entry) => entry.word === lemma || entry.reading === lemma);
+  const exact = entries.find((entry) => matchesLemma(entry, lemma));
   return exact ?? entries[0];
 }

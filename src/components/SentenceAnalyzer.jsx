@@ -289,8 +289,10 @@ export default function SentenceAnalyzer() {
             // above the previous word's definition while the lookup is in
             // flight. Cheaper and safer than resetting four state slices by
             // hand — a component whose state is ABOUT a subject should be
-            // keyed by that subject.
-            key={`${selectedToken.surface}:${selectedToken.baseForm}`}
+            // keyed by that subject. The fallback lemma is part of that subject
+            // too (#30): it's the second thing the overlay may look up, so the
+            // key covers everything the lookup depends on rather than most of it.
+            key={`${selectedToken.surface}:${selectedToken.baseForm}:${selectedToken.fallbackBaseForm ?? ''}`}
             token={selectedToken}
             onClose={() => setSelectedToken(null)}
             onKanjiClick={setDrilledKanji}

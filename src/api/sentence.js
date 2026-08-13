@@ -145,7 +145,9 @@ export async function warmUpAnalyzer() {
  * Analyze `text` and return its Tokens.
  *
  * Returns `{ tokens }`, which may be empty for blank input. Each Token is a tap
- * target: `{ surface, baseForm, pos, isInteractive, isUnknown }`.
+ * target: `{ surface, baseForm, pos, isInteractive, isUnknown, fallbackBaseForm }`
+ * — the last of those being a second lemma to try if `baseForm` finds nothing,
+ * null on all but a merged compound (see chunk.js).
  *
  * Throws on network/HTTP failure, and on input this refuses to send. Following
  * the convention set by words.js, the thrown error's `message` is copy that can

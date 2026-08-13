@@ -187,6 +187,30 @@ describe('the merge rule', () => {
     // A suffix builds a NEW word, so the merged text is what a lookup searches —
     // unlike an auxiliary, where the head's lemma is already the dictionary form.
     expect(station.baseForm).toBe('東京駅');
+    // …but the dictionary doesn't always carry the word this rule just built:
+    // Jisho has no 東京駅 entry, which made this the one dead-end tap in the
+    // measured corpus. The head's lemma rides along so the lookup can fall back
+    // to 東京 (issue #30); tokenLookup.js decides when to use it.
+    expect(station.fallbackBaseForm).toBe('東京');
+  });
+
+  it('carries a fallback lemma ONLY where a derivational suffix was merged', async () => {
+    stubCorpus();
+    const withFallback = [];
+
+    for (const [sentence] of EXPECTED_BOUNDARIES) {
+      const { tokens } = await analyzeSentence(sentence);
+      for (const token of tokens) {
+        if (token.fallbackBaseForm) withFallback.push(`${token.baseForm} → ${token.fallbackBaseForm}`);
+      }
+    }
+
+    // The whole corpus, exhaustively: two Tokens, both of them a noun plus a
+    // word-building suffix. Everything else — 行きました, 山田さん (honorific),
+    // 三杯 (counter), 食べさせられた (verb suffixes) — already looks up a lemma
+    // the dictionary carries, and a fallback there could only add a second
+    // request and a chance to answer the wrong question.
+    expect(withFallback).toEqual(['東京駅 → 東京', '子供たち → 子供']);
   });
 
   it('keeps the copula separate from a noun (傘 | です), but not from an adjective', async () => {
@@ -332,6 +356,10 @@ describe('the merge rule', () => {
 
     expect(tokens[0].surface).toBe('山田さん');
     expect(tokens[0].baseForm).toBe('山田');
+    // No fallback either: the lookup is already the head's lemma, so there is
+    // nothing left to fall back TO. Setting one here would spend a second
+    // request re-asking the question that just failed.
+    expect(tokens[0].fallbackBaseForm).toBeNull();
   });
 
   it('starts a Token from a dependent morpheme with nothing to attach to', async () => {

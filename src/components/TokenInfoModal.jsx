@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { lookUpToken, peekTokenEntries, pickPrimaryEntry } from '../api/tokenLookup';
+import { resolveToken, peekResolvedToken, pickPrimaryEntry } from '../api/tokenLookup';
 import { renderWithClickableKanji } from '../utils/clickableKanji';
 import { extractKanji } from '../api/kanji';
 import { useNavigation } from '../context/navigationContext';
@@ -23,7 +23,10 @@ import Modal from './Modal';
  *   - **A Token with no Entry is not a dead end.** Names, slang and anything
  *     IPADIC didn't recognise still open the overlay, still say plainly that
  *     there's no entry, and still offer their kanji for drilling — 山田 has no
- *     dictionary entry, but 山 and 田 do.
+ *     dictionary entry, but 山 and 田 do. And a merged compound the dictionary
+ *     doesn't carry falls back to the word it was built from: tap 東京駅, get
+ *     東京, with both words named on screen so the relationship is visible
+ *     rather than a silent substitution (issue #30).
  *
  *   - **"Add to Deck" closes the loop.** A Token that resolved to an Entry can
  *     go straight into a Deck, which is the whole point of the Sentence tab
@@ -33,7 +36,8 @@ import Modal from './Modal';
  *     came from is deliberately NOT carried onto the card (see issue #22).
  *
  * Props:
- *   token          - the Token that was tapped: { surface, baseForm, isUnknown }
+ *   token          - the Token that was tapped:
+ *                    { surface, baseForm, isUnknown, fallbackBaseForm }
  *   onClose        - dismiss the overlay
  *   onKanjiClick   - called with a single kanji character; the Sentence tab
  *                    swaps this overlay for the kanji explorer (SentenceAnalyzer)
@@ -60,6 +64,10 @@ export default function TokenInfoModal({
   onSelectEntry,
 }) {
   const lemma = token.baseForm;
+  // The lemma this Token was built from, for the one case where the merged
+  // lookup finds nothing (東京駅 → 東京). null on almost every Token; chunk.js
+  // sets it only where a derivational suffix was absorbed.
+  const fallbackLemma = token.fallbackBaseForm;
 
   // Same source as WordDetailCard's "Add to Deck": the picker is rendered up in
   // App.jsx, and this is how you ask it to open. A signed-out user is sent to
@@ -76,15 +84,17 @@ export default function TokenInfoModal({
   // `.then` can't run before the render that asked for it — so without this the
   // flash happens on every single one.
   //
-  // `undefined` from peekTokenEntries means "never looked up"; an array, even
-  // an empty one, is a settled answer. Hence `=== undefined` rather than a
-  // truthiness check, which would treat "no entry" as "still loading".
+  // `null` from peekResolvedToken means "not known yet" — either the lookup
+  // hasn't run, or it came back empty and the fallback hasn't run. A settled
+  // answer is an object, and its `entries` may still be empty: "looked up, and
+  // this word has no entry" is a real answer, not a loading state.
   //
-  // Both arguments are FUNCTIONS: useState's lazy initialiser form runs only on
-  // the first render. Passing the values directly would re-read the cache on
-  // every render for a result React throws away.
-  const [entries, setEntries] = useState(() => peekTokenEntries(lemma) ?? []);
-  const [isLoading, setIsLoading] = useState(() => peekTokenEntries(lemma) === undefined);
+  // The argument is a FUNCTION: useState's lazy initialiser form runs only on
+  // the first render. Passing the value directly would re-read the cache on
+  // every render for a result React throws away. `isLoading` derives from the
+  // same peek rather than repeating it, so the two can't start out disagreeing.
+  const [result, setResult] = useState(() => peekResolvedToken(lemma, fallbackLemma));
+  const [isLoading, setIsLoading] = useState(result === null);
   const [error, setError] = useState('');
   // Bumped by "Try again" to re-run the effect below. A failed lookup isn't
   // cached (see tokenLookup.js), so this really does retry the request.
@@ -97,9 +107,9 @@ export default function TokenInfoModal({
   useEffect(() => {
     let cancelled = false;
 
-    lookUpToken(lemma)
+    resolveToken(lemma, fallbackLemma)
       .then((found) => {
-        if (!cancelled) setEntries(found);
+        if (!cancelled) setResult(found);
       })
       .catch((err) => {
         // The error renders INSIDE this modal on purpose. The app-level banner
@@ -116,19 +126,28 @@ export default function TokenInfoModal({
     return () => {
       cancelled = true;
     };
-  }, [lemma, attempt]);
+  }, [lemma, fallbackLemma, attempt]);
 
   const handleRetry = () => {
     setIsLoading(true);
     setError('');
-    setEntries([]);
+    setResult(null);
     setAttempt((previous) => previous + 1);
   };
+
+  // What the lookup settled on. `shownLemma` is the word the entries are
+  // actually FOR — the Token's own lemma normally, the lemma it was built from
+  // when the fallback fired — and everything below reads from it rather than
+  // from `lemma`, so the Entry on screen and the card "Add to Deck" builds are
+  // never for a word the heading didn't name.
+  const entries = result?.entries ?? [];
+  const shownLemma = result?.lemma ?? lemma;
+  const usedFallback = result?.usedFallback ?? false;
 
   // The entry on screen: whichever the user picked, else the best match.
   // Derived at render time rather than synced into state, so nothing has to
   // keep it in step with `entries`.
-  const primary = pickPrimaryEntry(entries, lemma);
+  const primary = pickPrimaryEntry(entries, shownLemma);
   const shown = entries.find((entry) => entry.id === selectedId) ?? primary;
   const alternatives = entries
     .filter((entry) => entry.id !== shown?.id)
@@ -156,13 +175,17 @@ export default function TokenInfoModal({
 
           {/* 飲んだ → 飲む. Shown only when the two differ; a noun repeating
               itself is noise. The arrow is decorative, so a screen reader gets
-              the words instead. */}
-          {lemma !== token.surface && (
+              the words instead — and a different phrase when this is the
+              fallback, because 東京 is not the dictionary form of 東京駅, it's
+              the word underneath it. */}
+          {shownLemma !== token.surface && (
             <div className="text-muted">
               <span aria-hidden="true">→ </span>
-              <span className="visually-hidden">Dictionary form: </span>
+              <span className="visually-hidden">
+                {usedFallback ? 'Showing the entry for: ' : 'Dictionary form: '}
+              </span>
               <span lang="ja" className="fs-5">
-                {renderWithClickableKanji(lemma, null, onKanjiClick)}
+                {renderWithClickableKanji(shownLemma, null, onKanjiClick)}
               </span>
             </div>
           )}
@@ -207,9 +230,19 @@ export default function TokenInfoModal({
 
         {!isLoading && !error && shown && (
           <>
+            {/* Say it in words, not just with an arrow. The learner tapped
+                東京駅 and is looking at 東京 — leaving that implicit would read
+                as the app having quietly answered a different question. */}
+            {usedFallback && (
+              <p className="small text-body-secondary mb-3">
+                No dictionary entry for <span lang="ja">{lemma}</span> — showing{' '}
+                <span lang="ja">{shownLemma}</span>, the word it’s built from.
+              </p>
+            )}
+
             {/* The Headword, only when it isn't already in the header — a kana
                 lemma (こと) can resolve to a kanji entry (事). */}
-            {shown.word !== lemma && (
+            {shown.word !== shownLemma && (
               <div lang="ja" className="fs-4 fw-semibold">
                 {renderWithClickableKanji(shown.word, null, onKanjiClick)}
               </div>
