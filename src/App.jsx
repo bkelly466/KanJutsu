@@ -13,17 +13,17 @@ import { getCardsForReview } from './utils/srs';
 import logo from './assets/logo.png'
 
 function App() {
-  // Which tab, which Decks view, and whether the Add-to-Deck picker is open —
-  // all from NavigationContext (see context/navigationReducer.js).
+  // Which tab, which Decks view, and whether the picker is open. See
+  // src/reducers/navigation.js.
   const { activeTab, decksView, deckPickerTarget, setTab } = useNavigation();
 
-  // Current auth state. `user` is set when signed in, undefined when not.
-  // The dictionary works regardless; only the Decks tab uses this.
+  // `user` is set when signed in, undefined when not. The dictionary works
+  // either way; only the Decks tab reads this.
   const { user, signOut } = useAuthenticator((context) => [context.user]);
   const authed = !!user;
 
-  // App only needs the load/error state now — every deck mutation is read from
-  // DecksContext by the component that actually calls it.
+  // Load and error state only — every deck mutation is read from DecksContext
+  // by the component that calls it.
   const { decks, isLoading, error, clearError } = useDecksContext();
   const selectedDeck = useSelectedDeck();
 
@@ -32,16 +32,16 @@ function App() {
     0
   );
 
-  // The `selectedDeck` guards stay: both views read the deck on their first
-  // render, so neither may mount before one is chosen (or after it's deleted).
+  // Both views read the deck on their first render, so neither may mount
+  // before one is chosen, or after it's deleted.
   const renderDecksContent = () => {
     if (decksView === 'study' && selectedDeck) return <StudySession />;
     if (decksView === 'detail' && selectedDeck) return <DeckDetail />;
     return <DeckList />;
   };
 
-  // The Decks tab gates on login: logged-out users see the sign-in form;
-  // logged-in users see their decks plus a sign-out control.
+  // The Decks tab gates on login: the sign-in form when logged out, the decks
+  // plus a sign-out control when logged in.
   const renderDecksTab = () => {
     if (!authed) {
       return (
@@ -76,10 +76,9 @@ function App() {
 
   return (
     <>
-      {/* Bootstrap's responsive spacing utilities: `my-3` applies at every width,
-          `my-md-5` overrides it from the md breakpoint (768px) up. So phones get
-          tight spacing and desktop keeps the original roomier layout. Without
-          this the brand block fills a whole phone screen before the search box. */}
+      {/* `my-md-5` overrides `my-3` from the md breakpoint up: tight spacing on
+          phones, where the brand block would otherwise fill the whole screen
+          before the search box, and the roomier layout on desktop. */}
       <div className="container my-3 my-md-5 text-dark">
         <div className="brand-header text-center mb-4 mb-md-5">
           <div className="brand-badge-container mt-3 mt-md-5">
@@ -122,14 +121,13 @@ function App() {
           </li>
         </ul>
 
-        {/* Two of the three tabs are public; only Decks gates on login, which
-            renderDecksTab handles for itself. */}
+        {/* Only Decks gates on login, which renderDecksTab handles itself. */}
         {activeTab === 'dictionary' && <Query />}
         {activeTab === 'sentence' && <SentenceAnalyzer />}
         {activeTab === 'decks' && renderDecksTab()}
 
-        {/* Rendered at app level so it can open from either tab; it reads what
-            it's adding, and every deck it can add to, from the two contexts. */}
+        {/* At app level so it can open from any tab, reading what it's adding
+            and where it can go from the two contexts. */}
         {deckPickerTarget && <AddToDeckModal />}
       </div>
     </>

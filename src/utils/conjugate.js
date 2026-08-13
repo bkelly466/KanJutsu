@@ -1,24 +1,21 @@
 /**
  * Japanese verb conjugation — dictionary form + polite present ("ます" form).
  *
- * Neither kanjiapi nor Jisho returns conjugated forms, but the polite present
- * is fully rule-based and Jisho's `parts_of_speech` tells us the verb class, so
- * we compute it ourselves. The ます-form is the most regular conjugation, which
- * keeps this reliable.
- *
- * This module is intentionally dependency-free and pure — easy to unit test.
+ * Computed rather than fetched: neither kanjiapi nor Jisho returns conjugated
+ * forms, but the ます-form is the most regular conjugation there is and Jisho's
+ * `parts_of_speech` names the verb class.
  */
 
-// Godan (五段) verbs: shift the final う-row kana up to its い-row counterpart,
-// then add ます. e.g. 飲む → 飲み + ます, 帰る → 帰り + ます.
+// Godan (五段): shift the final う-row kana to its い-row counterpart, then add
+// ます — 飲む → 飲み + ます, 帰る → 帰り + ます.
 const GODAN_STEM = {
   'う': 'い', 'く': 'き', 'ぐ': 'ぎ', 'す': 'し', 'つ': 'ち',
   'ぬ': 'に', 'ぶ': 'び', 'む': 'み', 'る': 'り',
 };
 
 /**
- * Identify a verb's class from Jisho parts_of_speech strings.
- * Returns 'ichidan' | 'godan' | 'suru' | 'kuru' | null (not a verb).
+ * A verb's class from Jisho parts_of_speech strings:
+ * 'ichidan' | 'godan' | 'suru' | 'kuru', or null when it isn't a verb.
  */
 export function detectVerbClass(partsOfSpeech = []) {
   const pos = partsOfSpeech.map((p) => p.toLowerCase());
@@ -61,10 +58,11 @@ function toBase(str, verbClass) {
 }
 
 /**
- * Given a normalised word entry (see src/api/words.js), return its verb forms
- * or null if it isn't a verb.
+ * Verb forms for a normalised word entry (src/api/words.js), shaped
+ * `{ class, base: { word, reading }, polite: { word, reading } }`.
  *
- * Shape: { class, base: { word, reading }, polite: { word, reading } }
+ * null when the entry isn't a verb, and also when it is one the rules can't
+ * conjugate — showing nothing beats showing a guess.
  */
 export function getVerbForms(wordData) {
   if (!wordData) return null;
@@ -74,7 +72,6 @@ export function getVerbForms(wordData) {
   if (!verbClass) return null;
 
   const politeWord = toPolite(wordData.word, verbClass);
-  // If we couldn't conjugate (unexpected shape), show nothing rather than guess.
   if (!politeWord) return null;
 
   return {

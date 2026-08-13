@@ -2,24 +2,24 @@ import { useEffect } from 'react';
 import { useBackButton } from '../hooks/useBackButton';
 
 /**
- * Shared modal shell.
+ * Shared modal shell — the Bootstrap markup plus the behaviours Bootstrap's own
+ * JavaScript Modal would provide: body-scroll lock, Escape, and device Back.
+ * Callers supply only the contents of `.modal-content`.
  *
- * The app previously had four hand-rolled copies of the same Bootstrap markup
- * (`modal d-block` + an inline rgba backdrop). None of them used Bootstrap's
- * JavaScript Modal, so none of them locked body scroll — on iOS the page
- * visibly scrolled *behind* an open modal, which reads as broken.
+ * **Never mount two of these at once — swap them.** Each installs its own
+ * Escape listener, so one keypress would close both.
  *
- * This component owns the shell and the behaviour; callers supply only the
- * contents of `.modal-content` (their own header/body/footer).
+ * Known gap: no focus trap, and the page behind is not `aria-hidden`, so a
+ * keyboard or screen-reader user can reach the controls underneath.
  *
  * Props:
- *   onClose          - called to dismiss the modal (backdrop tap, Escape)
- *   size             - 'sm' | 'lg', matching Bootstrap's modal-sm / modal-lg.
- *                      Omit for the default width.
- *   scrollable       - true to add modal-dialog-scrollable (long content keeps
- *                      the header/footer fixed and scrolls the body)
- *   closeOnBackdrop  - defaults to true. Pass false for destructive confirms,
- *                      where an accidental tap outside shouldn't dismiss.
+ *   onClose          - dismiss the modal (backdrop tap, Escape)
+ *   size             - 'sm' | 'lg', matching modal-sm / modal-lg. Omit for the
+ *                      default width.
+ *   scrollable       - adds modal-dialog-scrollable: long content keeps the
+ *                      header and footer fixed and scrolls the body
+ *   closeOnBackdrop  - defaults to true. False for destructive confirms, where
+ *                      an accidental tap outside shouldn't dismiss.
  *   children         - rendered inside .modal-content
  */
 export default function Modal({
@@ -29,18 +29,14 @@ export default function Modal({
   closeOnBackdrop = true,
   children,
 }) {
-  // The device Back button closes the modal rather than leaving the app.
-  // Every modal in the app routes through this component, so wiring it here
-  // covers all of them. `true` because the component only exists while open.
+  // Every modal routes through here, so wiring Back once covers all of them.
+  // `true` because this component only exists while open.
   useBackButton(true, onClose);
 
-  // Lock scrolling on the page behind the modal.
-  //
-  // Bootstrap's JS normally does this; we're not using it, so we do it by hand.
-  // The cleanup restores whatever `overflow` was set before, so we don't clobber
-  // a value someone else set. Only one modal is ever open at a time in this app
-  // (AddToDeckModal *replaces* itself with CreateDeckModal rather than nesting),
-  // so a simple save/restore is enough — no need for a lock counter.
+  // Lock scrolling on the page behind. The cleanup restores whatever `overflow`
+  // was set before rather than clearing it, so nesting or swapping modals can't
+  // leave the page stuck at `hidden`. No lock counter: only one Modal is ever
+  // mounted at a time, so save/restore is enough.
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -49,8 +45,8 @@ export default function Modal({
     };
   }, []);
 
-  // Escape closes the modal — standard dialog behaviour, and it costs nothing
-  // to support even though the main target here is touch.
+  // Escape closes the modal. Each Modal installs its own listener, which is why
+  // two must never be mounted together.
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
@@ -59,12 +55,9 @@ export default function Modal({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // Build the dialog classes.
-  //
-  // `modal-fullscreen-sm-down` is the mobile win: below Bootstrap's sm
-  // breakpoint (576px) the dialog fills the screen edge-to-edge and its body
-  // scrolls on its own; at larger widths it stays the centred dialog it is
-  // today. That also stops tall forms (CreateDeckModal) overflowing a phone.
+  // `modal-fullscreen-sm-down` fills the screen below Bootstrap's sm breakpoint
+  // (576px) and stays a centred dialog above it, which is what stops tall forms
+  // overflowing a phone.
   const dialogClasses = [
     'modal-dialog',
     'modal-dialog-centered',

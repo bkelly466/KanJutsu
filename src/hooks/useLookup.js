@@ -1,54 +1,39 @@
 import { useState, useRef, useEffect } from 'react';
 
 /**
- * One async lookup lifecycle, shared by every surface that has one.
- *
- * The Token overlay, the kanji explorer and the Dictionary search were each
- * hand-rolling the same five things — a cancel flag, a loading flag, an error
- * string, a retry, and a peek at the cache — and the copies had already drifted:
- * only the Token overlay had the last two, so the kanji explorer offered no way
- * to recover from a failed fetch and blinked through "Loading 食…" every time
- * you pressed Back (issue #37).
- *
- * Usage:
+ * One async lookup lifecycle — loading, error, cancellation, retry, and a peek
+ * at the cache — shared by the Token overlay, the kanji explorer and the
+ * Dictionary search.
  *
  *   const { data, isLoading, error, retry } = useLookup(
- *     char,                        // the subject; null means "nothing to look up yet"
+ *     char,                        // the subject; null means nothing to look up
  *     () => fetchKanjiEntry(char), // how to load it
  *     () => peekKanjiEntry(char),  // optional: what the cache already knows
  *   );
  *
- * `data` is whatever `load` resolved with, uninterpreted. This hook has no
- * opinion about whether an empty result is an error — "no dictionary entry for
- * 山田" and "no words found for xyzzy" read differently and belong to the
- * component, not here.
+ * `data` is whatever `load` resolved with, uninterpreted. Whether an empty
+ * result reads as an error belongs to the component — "no dictionary entry for
+ * 山田" and "no words found for xyzzy" are different sentences.
  *
- * @param key   Identifies what's being looked up. Changing it starts a fresh
- *              lookup and throws away the old one's result; `null` means idle
- *              (no request, not loading).
+ * @param key   What's being looked up. Changing it starts a fresh lookup and
+ *              discards the old one's result; `null` is idle.
  *
- *              Two rules, both load-bearing:
- *              **It must be a primitive** (string, number, null). It's
- *              compared with `!==` during render, so an object rebuilt each
- *              render would never equal the last one and would loop forever.
- *              **It must name every input `load` reads.** `load` is held in a
- *              ref and the lookup re-runs on the key alone, so anything `load`
- *              closes over that the key doesn't mention will be silently
- *              ignored when it changes — and no lint rule will catch it.
- * @param load  Called with no arguments; returns a Promise of the data. Free
- *              to close over the current render's values, subject to the key
- *              rule above.
- * @param peek  Optional. Returns what's already known for `key` without making
- *              a request, or `undefined` if nothing is. Must be safe to call
- *              during render. This is what lets a cached lookup mount straight
- *              into its final state instead of flashing a spinner.
+ *              Two rules, both load-bearing. **It must be a primitive**,
+ *              because it's compared with `!==` during render and an object
+ *              rebuilt each render would loop forever. **It must name every
+ *              input `load` reads** — `load` lives in a ref and the lookup
+ *              re-runs on the key alone, so anything the key doesn't mention is
+ *              silently ignored when it changes, and no lint rule catches it.
+ * @param load  Takes no arguments, returns a Promise of the data. May close
+ *              over the current render's values, subject to the key rule.
+ * @param peek  Optional. What's already known for `key`, or `undefined`. Must
+ *              be safe during render — this is what lets a cached lookup mount
+ *              in its final state instead of flashing a spinner.
  */
 export function useLookup(key, load, peek) {
-  // What a lookup for `key` starts as: whatever the cache can tell us right
-  // now, else loading. Idle when there's no key.
-  //
-  // `undefined` from peek means "not known"; any other value — including null
-  // or an empty array — is a real answer the lookup already settled on.
+  // Whatever the cache can answer right now, else loading; idle with no key.
+  // `undefined` from peek means "not known"; anything else — including null or
+  // an empty array — is a real answer the lookup already settled on.
   function initialState(forKey) {
     if (forKey === null || forKey === undefined) {
       return { data: null, isLoading: false, error: '' };
@@ -58,71 +43,58 @@ export function useLookup(key, load, peek) {
     return { data: known, isLoading: false, error: '' };
   }
 
-  // The lazy initialiser form: the function runs only on the first render.
-  // Passing initialState(key) directly would re-read the cache on every render
-  // to build a value React throws away.
+  // Lazy initialiser form, so the cache is read once rather than on every
+  // render to build a value React discards.
   const [state, setState] = useState(() => initialState(key));
 
   // Bumped by retry() to re-run the effect below on an unchanged key.
   const [attempt, setAttempt] = useState(0);
 
-  // Resetting to loading when the key changes happens HERE, during render,
-  // rather than in an effect. Two reasons:
+  // The key-change reset happens during render, not in an effect. An effect
+  // runs after paint, so the user would see one frame of the previous kanji's
+  // data under the new heading — and setting state in an effect body is banned
+  // (react-hooks/set-state-in-effect) for that reason. It also re-reads the
+  // cache on every key change rather than only on mount, which is what makes
+  // drilling 食 → 米 and pressing Back instant.
   //
-  //   1. Setting state in an effect body is banned (ESLint
-  //      react-hooks/set-state-in-effect) because an effect runs after paint —
-  //      the user would see one frame of the *previous* kanji's data under the
-  //      new heading. React's documented fix is exactly this: compare the key
-  //      to the one the last render used, and set state right here. React
-  //      re-runs the render immediately, before anything reaches the screen.
-  //
-  //   2. It re-reads the cache on every key change, not just on mount. That's
-  //      what makes drilling 食 → 米 and pressing Back instant.
-  //
-  // The condition matters: an unguarded setState during render is an infinite
-  // loop. This one can only fire on the render where the key actually changed.
+  // The condition is what keeps this from being an infinite loop: it can only
+  // fire on the render where the key actually changed.
   const [renderedKey, setRenderedKey] = useState(key);
   if (key !== renderedKey) {
     setRenderedKey(key);
     setState(initialState(key));
   }
 
-  // `load` is a fresh closure on every render, so it can't go in the effect's
-  // dependency list — the effect would re-run (and re-request) constantly.
-  // Instead we keep the latest one in a ref. This effect is declared *before*
-  // the fetch effect on purpose: effects run in declaration order, so the ref
-  // is always up to date by the time the fetch effect reads it.
+  // `load` is a fresh closure every render, so listing it as a dependency would
+  // re-request constantly; a ref holds the latest instead. Declared BEFORE the
+  // fetch effect deliberately — effects run in declaration order, so the ref is
+  // current by the time the fetch effect reads it.
   const loadRef = useRef(load);
   useEffect(() => {
     loadRef.current = load;
   });
 
   useEffect(() => {
-    // Idle: nothing to look up.
     if (key === null || key === undefined) return;
 
     let cancelled = false;
 
-    // Note this fires even when the peek above already answered. Every caller
-    // that supplies a peek is backed by a cache, so that's a free promise
-    // rather than a second request — and the alternative (skipping the load
-    // when we already have data) would mean the cache and the hook disagreeing
-    // about who decides when a request happens.
+    // Runs even when peek already answered. Every caller supplying a peek is
+    // cache-backed, so this is a free promise rather than a second request, and
+    // skipping it would leave the cache and the hook disagreeing about who
+    // decides when a request happens.
     Promise.resolve()
-      // Inside the chain so a `load` that throws synchronously becomes an error
-      // state rather than an exception escaping the effect.
+      // Inside the chain, so a `load` that throws synchronously becomes an
+      // error state rather than an exception escaping the effect.
       .then(() => loadRef.current())
       .then((value) => {
         if (cancelled) return;
         setState((previous) =>
-          // Returning the previous state object tells React nothing changed, so
-          // it skips the re-render — the common case being a cache hit
-          // confirming exactly what peek already put on screen.
-          //
-          // Identity, not equality, so this only fires where the cache hands
-          // back the same object twice. It does for the kanji explorer; it
-          // doesn't for the Token overlay, whose peek and load each build a
-          // fresh result object, so that one takes a harmless extra render.
+          // Returning the previous object skips the re-render — the common case
+          // being a cache hit confirming what peek already put on screen.
+          // Identity, not equality: true for the kanji explorer, whose cache
+          // hands back the same object twice, and not for the Token overlay,
+          // which builds a fresh one and takes a harmless extra render.
           !previous.isLoading && !previous.error && previous.data === value
             ? previous
             : { data: value, isLoading: false, error: '' }
@@ -133,23 +105,21 @@ export function useLookup(key, load, peek) {
         setState({ data: null, isLoading: false, error: err.message || 'Something went wrong.' });
       });
 
-    // The subject changed, or the component went away, before this resolved.
-    // Without this the older request can land last and overwrite the newer
-    // one's results.
+    // Without this, an older request that lands last overwrites a newer one's
+    // results.
     return () => {
       cancelled = true;
     };
   }, [key, attempt]);
 
   /**
-   * Run the lookup again after a failure. Only useful when the cache doesn't
-   * keep failures (none of ours do — see api/lookupCache.js), which is what
-   * makes this a real retry rather than a re-read of the same error.
+   * Run the lookup again after a failure. A real retry rather than a re-read of
+   * the same error only because no cache here keeps failures — see
+   * api/lookupCache.js.
    */
   const retry = () => {
-    // Nothing to retry when idle — and going to `isLoading` here would strand
-    // the caller on a spinner forever, because the effect below returns early
-    // and nothing would ever clear it.
+    // Going to `isLoading` while idle would strand the caller on a spinner: the
+    // effect returns early, so nothing would ever clear it.
     if (key === null || key === undefined) return;
 
     setState({ data: null, isLoading: true, error: '' });

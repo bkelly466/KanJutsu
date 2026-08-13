@@ -21,31 +21,28 @@ const SRS_DEFAULTS = {
 export const getDefaultSRSState = () => ({
   ...SRS_DEFAULTS,
   nextReviewDate: new Date().toISOString(),
-  // Null = never reviewed. Because this is exactly the state a brand-new card
-  // starts in, resetting a card's SRS is just writing this object back.
+  // null = never reviewed. This being exactly a new card's state is what makes
+  // "reset SRS" a matter of writing this object back.
   lastReviewedDate: null
 });
 
 const MIN_EASE_FACTOR = 1.3;
 const PASSING_QUALITY = 3;
-// SM-2 quality 3 ("correct after serious difficulty") is the "Hard" rating.
-// Anki grows the interval by a fixed, smaller multiplier for Hard rather than
-// the full ease-factor growth used for Good/Easy — this keeps the streak
-// alive but advances the card cautiously. See HANDOFF.md for the writeup.
+// Quality 3 ("correct after serious difficulty") is the app's "Hard" rating.
+// Following Anki, it grows the interval by a fixed smaller multiplier instead
+// of the full ease factor: the streak survives, the card advances cautiously.
 const HARD_QUALITY = 3;
 const HARD_INTERVAL_MULTIPLIER = 1.2;
 
 /**
- * Given a card's current SRS state and a review quality (0-5), compute the
- * next interval, ease factor, repetition count, and due date.
+ * The card's next SRS state after a review — interval, ease factor, repetition
+ * count, and due date. `quality` is clamped to 0-5.
  */
 export const calculateNextReview = (card, quality) => {
   const { repetitions, easeFactor, interval } = card;
 
-  // Clamp quality to the supported 0-5 range.
   const q = Math.max(0, Math.min(5, quality));
 
-  // Adjust the ease factor, never letting it drop below the minimum.
   const newEaseFactor = Math.max(
     MIN_EASE_FACTOR,
     easeFactor + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
@@ -59,8 +56,6 @@ export const calculateNextReview = (card, quality) => {
     newRepetitions = 0;
     newInterval = 1;
   } else if (q === HARD_QUALITY) {
-    // Recalled, but with real difficulty — keep the streak but grow the
-    // interval cautiously instead of by the full ease factor.
     newInterval = Math.max(1, Math.round(interval * HARD_INTERVAL_MULTIPLIER));
     newRepetitions = repetitions + 1;
   } else {
@@ -82,16 +77,16 @@ export const calculateNextReview = (card, quality) => {
     easeFactor: newEaseFactor,
     interval: newInterval,
     nextReviewDate: nextReviewDate.toISOString(),
-    // Every rating in the app flows through this function, so stamping the
-    // review time here is enough to keep the card's history accurate.
+    // Every rating in the app flows through here, so this one stamp keeps the
+    // card's history accurate.
     lastReviewedDate: new Date().toISOString(),
   };
 };
 
 /**
- * Whole calendar days from today until a card is due. Both dates are
- * normalized to midnight so the answer never depends on the time of day:
- * 0 = due today, negative = overdue, 1 = due tomorrow, etc.
+ * Whole calendar days from today until a card is due — 0 today, 1 tomorrow,
+ * negative when overdue. Both dates are normalized to midnight, so the answer
+ * never depends on the time of day.
  */
 export const daysUntilDue = (card) => {
   const today = new Date();
@@ -108,8 +103,8 @@ export const getCardsForReview = (cards) =>
   cards.filter((card) => daysUntilDue(card) <= 0);
 
 /**
- * Human-readable due status for a card, e.g. "Due today" / "Due in 3 days".
- * Lives here beside daysUntilDue so the phrasing has one home.
+ * Human-readable due status — "Due today", "Due tomorrow", "Due in 3 days".
+ * Beside daysUntilDue so the phrasing has one home.
  */
 export const dueLabel = (card) => {
   const days = daysUntilDue(card);

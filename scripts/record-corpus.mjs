@@ -4,24 +4,23 @@
  *   npx ampx sandbox        # must be running / deployed first
  *   node scripts/record-corpus.mjs
  *
- * Why this exists: the chunking rule in src/utils/chunk.js is only meaningful
- * against morphemes IPADIC really emits. Hand-writing fixtures would encode our
- * assumptions about what a segmenter produces — and being wrong about exactly
- * that is what disqualified TinySegmenter during design (see ADR-0003). So the
- * fixtures are recorded from the deployed Lambda and committed as data.
+ * The chunking rule is only meaningful against morphemes IPADIC really emits,
+ * and hand-written fixtures would encode assumptions about what a segmenter
+ * produces — being wrong about exactly that is what disqualified TinySegmenter
+ * during design (ADR-0003). So they're recorded and committed as data.
  *
- * Re-run this whenever the Lambda's response shape changes. It rewrites
- * src/api/sentence.fixtures.js wholesale; don't hand-edit that file.
+ * Re-run whenever the Lambda's response shape changes. It rewrites
+ * src/api/sentence.fixtures.js wholesale; never hand-edit that file.
  */
 
 import { writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 
 /**
- * Roughly 30 sentences spanning N5-N3 grammar. The point is coverage of the
- * shapes the merge rule has to survive, not literary variety:
- * て-form, plain past, negative, polite, passive, causative-passive,
- * い- and な-adjectives, compound verbs, counters, and embedded clauses.
+ * Roughly 30 sentences spanning N5-N3 grammar, chosen for coverage of the
+ * shapes the merge rule must survive rather than literary variety: て-form,
+ * plain past, negative, polite, passive, causative-passive, い- and
+ * な-adjectives, compound verbs, counters, and embedded clauses.
  */
 const CORPUS = [
   // Plain past + particles — the canonical case from the spec.

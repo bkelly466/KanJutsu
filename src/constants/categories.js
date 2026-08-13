@@ -1,6 +1,6 @@
 /**
- * Deck category definitions, shared between deck creation and deck display.
- * Keeping these in one place keeps the picker, labels, and badge colors in sync.
+ * Deck categories, shared by deck creation and deck display so the picker,
+ * labels and badge colours stay in sync.
  */
 
 export const CATEGORY_OPTIONS = [
@@ -10,7 +10,7 @@ export const CATEGORY_OPTIONS = [
   { value: 'custom', label: 'Custom' },
 ];
 
-// Bootstrap contextual color per category type (used for deck badges).
+// Bootstrap contextual colour per category type, for deck badges.
 export const CATEGORY_COLORS = {
   jlpt: 'primary',
   grade: 'success',

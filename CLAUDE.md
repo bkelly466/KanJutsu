@@ -103,7 +103,8 @@ Architectural decisions with their reasoning live in `docs/adr/`.
 ## Non-negotiable rules
 1. **Plan first, explain as you go.** Before a non-trivial change, state a short plan.
    Briefly explain any new pattern/tool — the developer is ~2 months into coding and
-   values clear, commented code over cleverness.
+   values clarity over cleverness. **Explain in the conversation, not in the source.**
+   Comments follow the `writing-comments` skill; see `docs/agents/comments.md`.
 2. **Branch → PR → green CI → squash-merge to `main`. Never commit to `main` directly.**
    Pushing `main` auto-deploys via Amplify.
    **The assistant commits, pushes the feature branch, and opens the PR** — no
@@ -196,3 +197,9 @@ See `docs/agents/triage-labels.md`.
 
 Single-context: `CONTEXT.md` + `docs/adr/` at the repo root.
 See `docs/agents/domain.md`.
+
+### Comments
+
+Follow the `writing-comments` skill. Reasoning longer than a couple of sentences
+goes in `docs/adr/` and the source points at it; history stays in `git log` and
+`HANDOFF.md`. See `docs/agents/comments.md`.

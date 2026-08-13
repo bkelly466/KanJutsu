@@ -1,12 +1,9 @@
-// Presentational Component
+// Word-lookup results as clickable rows; the parent shows the selected word's
+// WordDetailCard.
 //
-// Renders word-lookup results as a vertical list of clickable rows. Clicking a
-// row selects that word (the parent then shows its WordDetailCard).
-//
-// Note: rows render the word as PLAIN text — not clickable-kanji buttons —
-// because the row itself is clickable, and nesting a <button> inside another
-// clickable element is invalid HTML. Per-kanji navigation lives in the detail
-// card instead.
+// Rows render the word as PLAIN text, not clickable-kanji buttons: the row is
+// itself a button, and nesting one inside another is invalid HTML. Per-kanji
+// navigation lives in the detail card instead.
 
 export default function WordList({ words, expandedWordId, setExpandedWordId }) {
   return (

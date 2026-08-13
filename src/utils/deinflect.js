@@ -1,25 +1,21 @@
 /**
  * Deinflection — turning a Surface form back into candidate Headwords.
  *
- * Jisho normally deinflects for us: searching 食べました finds 食べる. It only
- * fails when a longer Entry *begins with* the Surface form — 飲んだ returns
- * 飲んだくれ ("drunkard") and 飲む is absent from the results entirely. This
- * module covers that gap, and only that gap.
+ * Covers one gap and only one: Jisho deinflects 食べました → 食べる on its own,
+ * but fails where a longer Entry *begins with* the Surface form (飲んだ returns
+ * 飲んだくれ, and 飲む not at all). Scope is the euphonic (音便) た/て forms.
+ * See ADR-0002.
  *
- * Scope is deliberately narrow: the euphonic (音便) た/て forms, which are the
- * only shapes observed to fail. See docs/adr/0002-deinflection-fallback.md.
- *
- * This module is pure and network-free — it proposes candidates, it does not
- * verify them. Only the dictionary can say which candidate is a real word, so
- * `src/api/words.js` checks them.
+ * Pure and network-free — it proposes candidates and never verifies them. Only
+ * the dictionary can say which is a real word, so `src/api/words.js` checks.
  */
 
 /**
  * Euphonic た/て endings, mapped to the Headword endings they can come from.
  *
- * These are many-to-one, which is the whole difficulty: 飲んだ and 遊んだ share
- * the んだ ending but come from 飲む and 遊ぶ. There is no way to tell them
- * apart without a dictionary, so every candidate has to be offered.
+ * Many-to-one, which is the whole difficulty: 飲んだ and 遊んだ share んだ but
+ * come from 飲む and 遊ぶ. Nothing short of a dictionary separates them, so
+ * every candidate is offered.
  */
 const EUPHONIC_ENDINGS = {
   んだ: ['む', 'ぶ', 'ぬ'],
@@ -38,22 +34,13 @@ const EUPHONIC_ENDINGS = {
 };
 
 /**
- * Endings that *look* like our patterns but aren't godan verbs at all.
+ * Endings that look like the patterns above but are polite, copula or adjective
+ * morphology — 食べました, 学生でした, 高かった. Jisho handles every one, so the
+ * rules propose nothing rather than shredding them (食べました → 食べまする) and
+ * spending a request on it.
  *
- * These are polite, copula and adjective morphology: 食べました, 学生でした,
- * 高かった, 行かなかった, 食べたかった. Left unguarded, the rules above shred
- * them into nonsense (食べました → 食べます, 食べまする) and spend a second
- * request doing it. Jisho deinflects every one of these correctly on its own,
- * so the right move is to propose nothing at all.
- *
- * Two accepted trade-offs:
- * - A godan す verb whose stem ends in ま (済ます → 済ました) is skipped. The
- *   polite past is a far larger share of what a learner types.
- * - Bare-kana かった is skipped, so a kana-only 買った/勝った won't resolve.
- *   With kanji both still work — 買った ends った, not かった.
- *
- * Known limitation this does *not* fix: よかった returns 良かったら, because the
- * answer is the i-adjective 良い. Deinflecting adjectives is out of scope here.
+ * The trade-offs this buys, and the adjectives it doesn't fix: ADR-0002,
+ * "Known limitations".
  */
 const NON_GODAN_ENDINGS = [
   'ました',
@@ -69,24 +56,19 @@ const NON_GODAN_ENDINGS = [
 /**
  * Ichidan verbs form た/て by dropping る: 見る → 見た, 出る → 出た.
  *
- * Not euphonic, so it needs its own rule — and it's a real gap without one:
- * 見た returns 見た目, 出た returns 出たて, and the verb is absent from both.
- *
- * This fires on any た/て the rules above didn't claim, which is broad — うた
- * (歌) would propose うる. That's safe because `searchWords` trusts an exact
- * match first: 歌 is a real entry for うた, so the retry never runs. The rule
- * and that guard have to stay together.
+ * Fires on any た/て the euphonic rules didn't claim, which is broad enough to
+ * propose うる for うた (歌). Safe only because `searchWords` trusts an exact
+ * match first, so the retry never runs — this rule and that guard have to stay
+ * together. See ADR-0002, "An exact match is always trusted".
  */
 const ICHIDAN_ENDINGS = ['た', 'て'];
 
 /**
- * 行く is the one godan verb with irregular た/て forms: 行った, not 行いた.
+ * 行く, the one godan verb with irregular た/て forms — 行った, not 行いた.
  *
- * This case genuinely bites. 行った collides with 行ったり来たり, so the fallback
- * fires — and the regular った → う rule would resolve it to 行う (おこなう,
- * "to perform"), which is a real, common word and completely the wrong one.
- *
- * Matched as a suffix so compounds work too: 持って行った → 持って行く.
+ * Worth a rule of its own: 行った collides with 行ったり来たり, so the fallback
+ * fires, and the regular った → う rule resolves it to 行う (おこなう) — a real,
+ * common, entirely wrong word. Matched as a suffix so 持って行った works too.
  */
 const IRREGULAR_SUFFIXES = [
   ['行った', '行く'],

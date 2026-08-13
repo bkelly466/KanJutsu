@@ -20,15 +20,10 @@ export default function StudySession() {
   const { updateCardSRS } = useDecksContext();
   const deck = useSelectedDeck();
 
-  // All five pieces of session state live in one reducer, because rating a card
-  // changes four of them at once.
-  //
-  // Only the THIRD argument is lazy. React passes the second argument to it and
-  // runs it once, on the first render — but the second argument is an ordinary
-  // expression, so JavaScript still evaluates it on every render even though
-  // React ignores the result. Building the queue there would therefore re-run a
-  // full shuffle on every flip and every rating. Passing `deck` (already in hand)
-  // and doing the work inside the initializer keeps it genuinely once-only.
+  // Only the THIRD argument is lazy. The second is an ordinary expression that
+  // JavaScript evaluates on every render even though React discards it after
+  // the first — building the queue there would re-shuffle on every flip and
+  // rating. Hence `deck` in, and the work inside the initializer.
   const [state, dispatch] = useReducer(
     studySessionReducer,
     deck,
@@ -36,13 +31,11 @@ export default function StudySession() {
   );
   const { queue, currentIndex, isFlipped, sessionStats, done } = state;
 
-  // What to say if an SRS write has failed this session, or '' if none has.
-  // Local, not in the reducer: the reducer is pure and this is the outcome of
-  // a network call.
+  // What to say if an SRS write has failed this session, '' if none has.
+  // Outside the reducer, which is pure — this is a network outcome.
   const [saveError, setSaveError] = useState('');
 
-  // Device Back exits the session (same as the Exit button) rather than
-  // leaving the app mid-review.
+  // Device Back exits the session rather than the app.
   useBackButton(true, backToDetail);
 
   const total = queue.length;
@@ -51,26 +44,21 @@ export default function StudySession() {
   const handleFlip = () => dispatch({ type: 'FLIP' });
 
   const handleRate = async (quality) => {
-    // The SM-2 math and the cloud write stay here: a reducer has to be pure, so
-    // it receives the already computed `metrics` rather than calculating them.
+    // The reducer is pure, so the SM-2 math happens here and arrives as
+    // already-computed `metrics`.
     const metrics = calculateNextReview(current, quality);
 
-    // Advance FIRST, then write. The next card should appear the instant the
-    // rating is tapped — making a learner wait on a round trip between every
-    // card is the one place in the app where latency would really be felt.
+    // Advance FIRST, then write: the next card appears the instant the rating
+    // is tapped. A round trip between every card is the one place in the app
+    // where latency would really be felt.
     const ratingKey = RATINGS.find(r => r.quality === quality)?.label.toLowerCase();
     dispatch({ type: 'RATE', quality, ratingKey, metrics });
 
-    // A failed write used to be silent: the boolean was dropped on the floor.
-    // The session is safe to continue — the reducer already has the right
-    // state, and only the cloud copy is lost, so the card simply comes up
-    // again in a later session. But the learner is told, because "I reviewed
-    // these" and "these were saved" have to mean the same thing.
-    //
-    // An expired session is the case that matters most here: it fails EVERY
-    // remaining review, so the generic notice would let someone rate thirty
-    // cards and lose all of them without ever being told the fix is to sign in
-    // again. writeFailureMessage is what surfaces that instead.
+    // The session continues safely on a failed write — only the cloud copy is
+    // lost, so the card comes up again next time — but the learner is told,
+    // because "I reviewed these" and "these were saved" must mean the same
+    // thing. An expired session fails EVERY remaining review, which is why the
+    // message has to name that cause rather than staying generic.
     const result = await updateCardSRS(current.id, metrics);
     if (!result.ok) {
       setSaveError(
@@ -82,10 +70,9 @@ export default function StudySession() {
     }
   };
 
-  // Shown once any review fails to save, and stays for the rest of the session.
-  // Deliberately not a retry: retrying reviews is a real design of its own
-  // (ordering, conflicts, what happens if the session ends mid-retry) and
-  // guessing at it here would be worse than reporting honestly.
+  // Stays for the rest of the session once any review fails to save. Not a
+  // retry: ordering, conflicts and ending mid-retry make that its own design,
+  // and guessing at it would be worse than reporting honestly.
   const saveFailedNotice = saveError && (
     <p className="text-warning small text-center mb-0" role="alert">
       {saveError}
@@ -96,8 +83,8 @@ export default function StudySession() {
     const reviewed = sessionStats.again + sessionStats.hard + sessionStats.good + sessionStats.easy;
     const correct = sessionStats.good + sessionStats.easy;
     const pct = reviewed > 0 ? Math.round((correct / reviewed) * 100) : 0;
-    // "Again" cards get re-queued and rated twice, so the queue length
-    // overstates how many distinct cards were studied. Count unique ids.
+    // "Again" cards are re-queued and rated twice, so queue length overstates
+    // how many distinct cards were studied.
     const uniqueCards = new Set(queue.map((c) => c.id)).size;
 
     return (
@@ -186,24 +173,17 @@ export default function StudySession() {
         onClick={!isFlipped ? handleFlip : undefined}
       >
         <div className="card-body d-flex flex-column justify-content-center align-items-center p-4">
-          {/* Front */}
-          {/* Words can be several characters long, so their size scales with
-              the viewport; a single kanji is always one glyph and can stay
-              large. `keep-all` forbids breaking inside a run of CJK characters
-              — without it a long word stacks one character per line, which
-              changes how it reads. */}
+          {/* A word can be several characters, so it scales with the viewport;
+              a single kanji is one glyph and stays large. */}
           <div
             style={{
               fontSize: isWord ? 'clamp(2rem, 9vw, 3rem)' : 'clamp(3.5rem, 16vw, 5rem)',
               fontWeight: 'bold',
               lineHeight: 1.1,
               marginBottom: '0.5rem',
-              // keep-all forbids breaking inside a run of CJK characters, so a
-              // word never stacks one character per line. overflowWrap is the
-              // safety net: it only engages when a word cannot fit on a line at
-              // all, so a very long compound wraps instead of running off the
-              // card. The front of a flashcard must never be truncated — the
-              // whole point is to read it — so no ellipsis here.
+              // keep-all stops a word stacking one character per line;
+              // overflowWrap is the safety net for a compound that can't fit at
+              // all. Never truncated — reading the front is the whole point.
               wordBreak: 'keep-all',
               overflowWrap: 'anywhere',
             }}
@@ -237,9 +217,8 @@ export default function StudySession() {
                 )}
               </div>
 
-              {/* Verb forms (word cards only). Show the dictionary form when it
-                  differs from the front (e.g. する-nouns: front 勉強 → 勉強する),
-                  and always the polite ます form. */}
+              {/* The dictionary form only when it differs from the front —
+                  a する-noun has front 勉強 and dictionary form 勉強する. */}
               {isWord && current.back.verbForms && (
                 <div className="text-muted small mt-3">
                   {current.back.verbForms.base.word !== current.front && (
@@ -269,7 +248,6 @@ export default function StudySession() {
         </div>
       </div>
 
-      {/* Rating buttons — only shown after flip */}
       {isFlipped && (
         <div className="d-flex gap-2 justify-content-center mt-4" style={{ maxWidth: 480, margin: '1rem auto 0' }}>
           {RATINGS.map(r => (
@@ -281,17 +259,16 @@ export default function StudySession() {
                 color: '#fff',
                 border: 'none',
                 padding: '10px 4px',
-                // The four most-tapped buttons in the app. 48px clears the
-                // 44px touch-target minimum with room to spare.
+                // The four most-tapped buttons in the app; 48px clears the 44px
+                // touch-target floor with room to spare.
                 minHeight: 48,
               }}
-              // No `title` tooltip: it only appears on hover, which touch
-              // devices never fire. The hint is rendered below instead.
+              // No `title` tooltip — it only appears on hover, which touch
+              // devices never fire. The hint below replaces it.
               onClick={() => handleRate(r.quality)}
             >
               <div>{r.label}</div>
-              {/* Always-visible hint, replacing the hover-only tooltip.
-                  Kept very small so the button stays compact at 4-across. */}
+              {/* Very small, so the button stays compact at 4-across. */}
               <div
                 className="fw-normal lh-sm"
                 style={{ fontSize: '0.65rem', opacity: 0.85 }}

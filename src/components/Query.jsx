@@ -4,9 +4,8 @@ import WordList from './WordList';
 import WordDetailCard from './WordDetailCard';
 import KanjiInfoModal from './KanjiInfoModal';
 
-// The Dictionary search is word-first: every search returns vocabulary results.
-// Individual kanji are explored by tapping them, which opens a Pleco-style
-// overlay (KanjiInfoModal) — keeping the user's word results in place behind it.
+// The Dictionary tab. Search is word-first; individual kanji are explored by
+// tapping them, which opens KanjiInfoModal over the word results.
 export default function Query() {
   const [query, setQuery] = useState('');
   const [expandedWordId, setExpandedWordId] = useState(null);
@@ -23,16 +22,14 @@ export default function Query() {
     search(query);
   };
 
-  // "Search 飲んだ instead" — re-run the search literally, without the
-  // conjugated-form fallback, so a substitution can always be undone.
+  // The "Search 飲んだ instead" escape hatch: re-run literally, so a
+  // deinflection substitution can always be undone.
   const handleExactSearch = (surfaceForm) => {
     setExpandedWordId(null);
     setQuery(surfaceForm);
     search(surfaceForm, { allowDeinflection: false });
   };
 
-  // Tapping a kanji — in a word's headword or inside the overlay's common-words
-  // list — opens the explorer for that character.
   const handleKanjiClick = (char) => setKanjiModalChar(char);
 
   return (
@@ -58,21 +55,18 @@ export default function Query() {
         </form>
       </div>
 
-      {/* Errors and "no results" share one muted, centered style — matching
-          the loading/empty states used elsewhere in the app. */}
+      {/* Muted and centred, matching the states used elsewhere in the app. */}
       {error && <p className="text-muted text-center py-3">{error}</p>}
 
       {isLoading ? (
         <p className="text-muted text-center py-3">Word results loading…</p>
       ) : (
         results.length > 0 && (
-          // Plain div, not `.container` — this sits inside App's own
-          // `.container`, and nesting them double-applies Bootstrap's gutter
-          // padding, which visibly narrows results on a phone.
+          // Plain div, not `.container`: this sits inside App's own, and
+          // nesting double-applies Bootstrap's gutter padding on a phone.
           <div>
-            {/* When the typed word was a conjugated form, say so rather than
-                silently swapping it. The dictionary form is the one a learner
-                needs to memorise, so showing it is part of the answer. */}
+            {/* Say the word was swapped rather than swapping it silently — the
+                dictionary form is part of the answer a learner needs. */}
             {resolvedFrom && (
               <div className="text-center py-2 mb-2">
                 <p className="text-muted mb-1">
@@ -80,10 +74,8 @@ export default function Query() {
                   {' — '}
                   <span lang="ja">{resolvedFrom.surfaceForm}</span> may be a form of it.
                 </p>
-                {/* The escape hatch, on its own line directly under the hedge.
-                    We can't guarantee every substitution is right — Japanese has
-                    plenty of words that merely look like conjugations — so
-                    getting back to the literal search is always one tap away. */}
+                {/* Japanese has plenty of words that merely look like
+                    conjugations, so the literal search stays one tap away. */}
                 <button
                   type="button"
                   className="btn btn-link p-0"
@@ -112,7 +104,6 @@ export default function Query() {
         )
       )}
 
-      {/* Pleco-style kanji explorer, layered on top of the word results. */}
       {kanjiModalChar && (
         <KanjiInfoModal
           initialKanji={kanjiModalChar}

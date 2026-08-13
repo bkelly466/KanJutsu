@@ -6,12 +6,10 @@ import { useSelectedDeck } from '../hooks/useSelectedDeck';
 import CardDetailModal from './CardDetailModal';
 
 /**
- * Truncate a single line with an ellipsis instead of wrapping.
- *
- * All three properties are required together: `nowrap` keeps the text on one
- * line, `hidden` clips what doesn't fit, and `ellipsis` draws the "…". The
- * element also needs a constrained width — here that comes from the parent's
- * `minWidth: 0`, without which a flex item refuses to shrink below its content.
+ * Truncate a single line with an ellipsis instead of wrapping. All three
+ * properties are required together, and the element also needs a constrained
+ * width — here the parent's `minWidth: 0`, without which a flex item refuses
+ * to shrink below its content.
  */
 const ELLIPSIS = {
   whiteSpace: 'nowrap',
@@ -23,14 +21,12 @@ export default function DeckDetail() {
   const { backToList, studySelected } = useNavigation();
   const deck = useSelectedDeck();
 
-  // Track the card by ID, not the object: useDecks refetches after every
-  // mutation and rebuilds `decks`, so a held card object would go stale the
-  // moment the user edited or reset it.
+  // By id, not the object: useDecks rebuilds `decks` after every mutation, so a
+  // held card would go stale the moment it was edited or reset.
   const [selectedCardId, setSelectedCardId] = useState(null);
 
-  // Device Back returns to the deck list instead of leaving the app.
-  // All hooks are called before the early return below so the hook order
-  // stays stable across renders.
+  // Device Back returns to the deck list, not out of the app. Called before the
+  // early return below, so hook order stays stable across renders.
   useBackButton(!!deck, backToList);
 
   if (!deck) return null;
@@ -39,12 +35,12 @@ export default function DeckDetail() {
   const selectedCard = deck.cards.find((c) => c.id === selectedCardId);
 
   /**
-   * The reading shown in parentheses beside the headword. Word cards have one
-   * reading; kanji cards have on'yomi and kun'yomi, which we join — they stay
-   * tellable apart because on'yomi is katakana and kun'yomi hiragana.
+   * The reading shown in parentheses beside the headword, or null when there is
+   * nothing worth showing — so the caller omits the parentheses rather than
+   * rendering an empty "()".
    *
-   * Returns null when there's nothing worth showing, so the caller can omit
-   * the parentheses entirely rather than render an empty "()".
+   * A kanji card's on'yomi and kun'yomi are joined; they stay tellable apart
+   * because on'yomi is katakana and kun'yomi hiragana.
    */
   const readingFor = (card) => {
     if (card.type === 'word') {
@@ -58,9 +54,8 @@ export default function DeckDetail() {
 
   return (
     <div>
-      {/* flex-wrap lets the Study button drop onto its own line rather than
-          crushing a long deck name on a phone. The title has a min-width so it
-          is the element that forces the wrap. */}
+      {/* flex-wrap drops the Study button onto its own line rather than
+          crushing a long deck name. The title's min-width forces that wrap. */}
       <div className="d-flex flex-wrap align-items-center gap-2 gap-md-3 mb-4">
         <button className="btn btn-outline-secondary btn-sm touch-target" onClick={backToList}>
           ← Back
@@ -100,25 +95,22 @@ export default function DeckDetail() {
             {deck.cards.map(card => {
               const reading = readingFor(card);
               return (
-                // The whole row opens the card's detail modal.
-                // `list-group-item-action` gives the press feedback that touch
-                // needs (the same pattern the dictionary results use).
+                // `list-group-item-action` gives the press feedback touch
+                // needs, matching the dictionary results.
                 <button
                   key={card.id}
                   type="button"
                   className="list-group-item list-group-item-action d-flex align-items-center text-start"
                   onClick={() => setSelectedCardId(card.id)}
                 >
-                  {/* minWidth: 0 lets this block shrink below its content width.
-                      Flex items default to min-width:auto, which would otherwise
-                      push the chevron off the right edge — and it's also what
-                      makes the ellipsis below possible. */}
+                  {/* Flex items default to min-width:auto, which would push the
+                      chevron off the right edge. This is also what makes the
+                      ellipsis below possible. */}
                   <div className="flex-grow-1" style={{ minWidth: 0 }}>
-                    {/* Both lines truncate with an ellipsis rather than wrapping:
-                        a row is a summary, and the full text is one tap away in
-                        the modal. `nowrap` also removes any chance of Japanese
-                        stacking one character per line, since there is no line
-                        to break onto. */}
+                    {/* A row is a summary and the full text is one tap away, so
+                        both lines truncate. `nowrap` also rules out Japanese
+                        stacking one character per line — there is no second
+                        line to break onto. */}
                     <div style={ELLIPSIS}>
                       <span
                         style={{ fontSize: '1.8rem', fontWeight: 'bold', lineHeight: 1.2 }}
@@ -132,10 +124,9 @@ export default function DeckDetail() {
                     </div>
                   </div>
 
-                  {/* Decorative. The button has no aria-label: that would
-                      REPLACE the name computed from its contents, so a screen
-                      reader would announce only "Details for 水" and lose the
-                      reading and meaning it currently reads out. */}
+                  {/* Decorative. The button deliberately has no aria-label:
+                      that would REPLACE the name computed from its contents,
+                      losing the reading and meaning a screen reader reads out. */}
                   <span
                     className="text-muted ms-3"
                     style={{ fontSize: '2rem', lineHeight: 1, flexShrink: 0 }}
@@ -150,9 +141,9 @@ export default function DeckDetail() {
         </>
       )}
 
-      {/* selectedCard is looked up from `deck.cards` on every render, so it
-          always reflects the latest data after a mutation + refetch. It goes
-          undefined if the card is removed, which closes the modal. */}
+      {/* Looked up from `deck.cards` every render, so it reflects the latest
+          refetch — and goes undefined when the card is removed, closing the
+          modal. */}
       {selectedCard && (
         <CardDetailModal
           card={selectedCard}

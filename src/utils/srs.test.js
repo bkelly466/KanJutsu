@@ -7,13 +7,13 @@ import {
   dueLabel,
 } from './srs';
 
-// Helper: build a card-like object with just the SRS fields calculateNextReview reads.
+// A card-like object carrying only the SRS fields calculateNextReview reads.
 const makeCard = (overrides = {}) => ({
   ...getDefaultSRSState(),
   ...overrides,
 });
 
-// Helper: an ISO date n days from now (negative = in the past).
+// An ISO date n days from now; negative is in the past.
 const daysFromNow = (n) => {
   const d = new Date();
   d.setDate(d.getDate() + n);
