@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
 import { resolveToken, peekResolvedToken, pickPrimaryEntry } from '../api/tokenLookup';
+import { useLookup } from '../hooks/useLookup';
 import { renderWithClickableKanji } from '../utils/clickableKanji';
 import { extractKanji } from '../api/kanji';
 import { useNavigation } from '../context/navigationContext';
@@ -75,65 +75,41 @@ export default function TokenInfoModal({
   // navigation reducer, not here.
   const { openDeckPicker } = useNavigation();
 
-  // Start from whatever the cache already knows, so a lemma looked up earlier
-  // renders its Entry immediately instead of blinking through "Looking up…".
+  // The lookup, and everything around it: cancelling a request the user closed
+  // the overlay on, the loading and error states, the retry, and starting from
+  // whatever the cache already knows so a word looked up earlier renders its
+  // Entry immediately instead of blinking through "Looking up…". All shared
+  // with the kanji explorer and the Dictionary search — see
+  // src/hooks/useLookup.js.
   //
-  // This overlay is unmounted and re-mounted far more than it looks: drilling a
-  // kanji swaps it out, and so does opening the deck picker. The promise cache
-  // in tokenLookup.js makes those re-opens free but not *synchronous* — a
-  // `.then` can't run before the render that asked for it — so without this the
-  // flash happens on every single one.
+  // That last part earns its keep here: this overlay is unmounted and
+  // re-mounted far more than it looks, because drilling a kanji swaps it out
+  // and so does opening the deck picker.
   //
   // `null` from peekResolvedToken means "not known yet" — either the lookup
-  // hasn't run, or it came back empty and the fallback hasn't run. A settled
-  // answer is an object, and its `entries` may still be empty: "looked up, and
-  // this word has no entry" is a real answer, not a loading state.
+  // hasn't run, or it came back empty and the fallback hasn't run — so it's
+  // mapped to `undefined`, which is how useLookup spells "go and find out". A
+  // settled answer is an object, and its `entries` may still be empty: "looked
+  // up, and this word has no entry" is a real answer, not a loading state.
   //
-  // The argument is a FUNCTION: useState's lazy initialiser form runs only on
-  // the first render. Passing the value directly would re-read the cache on
-  // every render for a result React throws away. `isLoading` derives from the
-  // same peek rather than repeating it, so the two can't start out disagreeing.
-  const [result, setResult] = useState(() => peekResolvedToken(lemma, fallbackLemma));
-  const [isLoading, setIsLoading] = useState(result === null);
-  const [error, setError] = useState('');
-  // Bumped by "Try again" to re-run the effect below. A failed lookup isn't
-  // cached (see tokenLookup.js), so this really does retry the request.
-  const [attempt, setAttempt] = useState(0);
-
-  // Same shape as KanjiInfoModal's fetch effect: the effect only kicks off the
-  // request and updates state from the promise callbacks, never synchronously
-  // (ESLint react-hooks/set-state-in-effect). The "back to loading" reset lives
-  // in the retry handler instead.
-  useEffect(() => {
-    let cancelled = false;
-
-    resolveToken(lemma, fallbackLemma)
-      .then((found) => {
-        if (!cancelled) setResult(found);
-      })
-      .catch((err) => {
-        // The error renders INSIDE this modal on purpose. The app-level banner
-        // sits in App's `.container`, underneath a fixed-position modal, and
-        // `modal-fullscreen-sm-down` hides it outright on a phone — a failed
-        // lookup would look like a word with no entry.
-        if (!cancelled) setError(err.message || 'Could not look that word up.');
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-
-    // The user may close the overlay before the lookup resolves.
-    return () => {
-      cancelled = true;
-    };
-  }, [lemma, fallbackLemma, attempt]);
-
-  const handleRetry = () => {
-    setIsLoading(true);
-    setError('');
-    setResult(null);
-    setAttempt((previous) => previous + 1);
-  };
+  // The error renders INSIDE this modal on purpose. The app-level banner sits
+  // in App's `.container`, underneath a fixed-position modal, and
+  // `modal-fullscreen-sm-down` hides it outright on a phone — a failed lookup
+  // would look like a word with no entry.
+  const {
+    data: result,
+    isLoading,
+    error,
+    retry,
+  } = useLookup(
+    // Both lemmas, because both decide what comes back. SentenceAnalyzer keys
+    // this whole component by its Token, so in practice neither changes while
+    // it's mounted — but a lookup key that didn't name everything it depends
+    // on would be a trap for whoever removes that key.
+    `${lemma}|${fallbackLemma ?? ''}`,
+    () => resolveToken(lemma, fallbackLemma),
+    () => peekResolvedToken(lemma, fallbackLemma) ?? undefined
+  );
 
   // What the lookup settled on. `shownLemma` is the word the entries are
   // actually FOR — the Token's own lemma normally, the lemma it was built from
@@ -206,7 +182,7 @@ export default function TokenInfoModal({
             <p className="text-danger" role="alert">
               {error}
             </p>
-            <button type="button" className="btn btn-outline-secondary" onClick={handleRetry}>
+            <button type="button" className="btn btn-outline-secondary" onClick={retry}>
               Try again
             </button>
           </div>

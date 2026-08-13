@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { fetchKanjiEntry } from '../api/kanji';
+import { useState } from 'react';
+import { fetchKanjiEntry, peekKanjiEntry } from '../api/kanji';
+import { useLookup } from '../hooks/useLookup';
 import DetailedInfoCard from './DetailedInfoCard';
 import Modal from './Modal';
 
@@ -21,62 +22,46 @@ export default function KanjiInfoModal({ initialKanji, onClose }) {
   const [stack, setStack] = useState([initialKanji]);
   const current = stack[stack.length - 1];
 
-  const [entry, setEntry] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-
   // Fetch whenever the current kanji changes (initial open, drill, or back).
-  // The effect itself only kicks off the async fetch and updates state from the
-  // promise callbacks — it never sets state synchronously. The "show loading"
-  // reset happens in the event handlers below instead.
-  useEffect(() => {
-    let cancelled = false;
-
-    fetchKanjiEntry(current)
-      .then((data) => {
-        if (cancelled) return;
-        if (data) setEntry(data);
-        else setError(`No kanji data found for ${current}.`);
-      })
-      .catch(() => {
-        if (!cancelled) setError('Failed to load kanji info. Please try again.');
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-
-    // If the user drills/closes before the fetch resolves, ignore the result.
-    return () => {
-      cancelled = true;
-    };
-  }, [current]);
-
-  // Reset the view into a fresh loading state before navigating to a new kanji.
-  const resetForNav = () => {
-    setIsLoading(true);
-    setError('');
-    setEntry(null);
-  };
+  // The lifecycle — cancelling a fetch the user drilled away from, the loading
+  // and error states, the retry, and reading the cache so a Back doesn't
+  // re-blink through "Loading 食…" — all lives in useLookup, shared with the
+  // Token overlay and the Dictionary search. See src/hooks/useLookup.js.
+  const {
+    data: entry,
+    isLoading,
+    error,
+    retry,
+  } = useLookup(
+    current,
+    () => fetchKanjiEntry(current),
+    () => peekKanjiEntry(current)
+  );
 
   // Drill into another kanji (tapped inside the current card).
   const handleDrill = (char) => {
     if (char === current) return;
-    resetForNav();
     setStack((prev) => [...prev, char]);
   };
 
   // Pop back to the previous kanji in the breadcrumb.
   const handleBack = () => {
-    resetForNav();
     setStack((prev) => prev.slice(0, -1));
   };
 
   return (
     <Modal onClose={onClose} size="lg" scrollable>
-      {/* Back appears only once we've drilled at least one level deep.
-          The card below renders its own close (X) wired to onClose. */}
-      {stack.length > 1 && (
-        <div className="modal-header border-0 pb-0">
+      {/* Always rendered, contents varying, so the body below doesn't jump as
+          a lookup resolves — an uncached open would otherwise drop this whole
+          header the moment the card arrived, which on a phone reads as a
+          flicker.
+
+          Back appears only once we've drilled at least one level deep. The
+          close (X) is the card's own when there IS a card; the loading, error
+          and no-data states have no card, so the header carries one for them
+          rather than leaving the overlay dismissable only by Escape. */}
+      <div className="modal-header border-0 pb-0">
+        {stack.length > 1 && (
           <button
             type="button"
             className="btn btn-sm btn-outline-secondary touch-target"
@@ -84,15 +69,43 @@ export default function KanjiInfoModal({ initialKanji, onClose }) {
           >
             ← Back
           </button>
-        </div>
-      )}
+        )}
+        {!entry && (
+          <button
+            type="button"
+            className="btn-close ms-auto"
+            aria-label="Close"
+            onClick={onClose}
+          ></button>
+        )}
+      </div>
 
       <div className="modal-body pt-0">
-        {isLoading ? (
-          <p className="text-muted text-center py-4">Loading {current}…</p>
-        ) : error ? (
-          <p className="text-danger text-center py-4">{error}</p>
-        ) : (
+        {isLoading && <p className="text-muted text-center py-4">Loading {current}…</p>}
+
+        {/* A failed fetch is recoverable, and now says so. Failures aren't
+            cached (src/api/lookupCache.js), so this really does re-request.
+            The copy from kanji.js deliberately doesn't end in "please try
+            again" — the button says that. */}
+        {!isLoading && error && (
+          <div className="text-center py-4">
+            <p className="text-danger" role="alert">
+              {error}
+            </p>
+            <button type="button" className="btn btn-outline-secondary" onClick={retry}>
+              Try again
+            </button>
+          </div>
+        )}
+
+        {/* kanjiapi doesn't carry this character — a settled answer, not a
+            failure, so it reads like the Token overlay's "no entry" state
+            rather than an error the user could do something about. */}
+        {!isLoading && !error && !entry && (
+          <p className="text-muted text-center py-4">No kanji data found for {current}.</p>
+        )}
+
+        {!isLoading && !error && entry && (
           <DetailedInfoCard
             selectedData={entry}
             // The card's own close button (X) closes the whole overlay.

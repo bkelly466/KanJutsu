@@ -89,6 +89,15 @@ export default function DetailedInfoCard({ selectedData, onClose, onKanjiClick }
           <div className="mb-3"><strong>Notes:</strong> {selectedData.notes}</div>
         )}
 
+        {/* The word list comes from a different service than the kanji data
+            above, so it can fail on its own. Saying so beats rendering nothing,
+            which is what a kanji with genuinely no common words looks like. */}
+        {selectedData.commonWordsUnavailable && (
+          <p className="text-muted small mb-0">
+            Common words couldn’t be loaded. Close and re-open to try again.
+          </p>
+        )}
+
         {selectedData.commonWords && selectedData.commonWords.length > 0 && (
           <div>
             <h5 className="fw-bold border-bottom pb-2 mb-3 text-secondary">
