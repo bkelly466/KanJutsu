@@ -3,6 +3,7 @@ import Modal from './Modal';
 import { applyCustomMeanings, hasCustomMeanings, revertMeanings } from '../utils/card';
 import { dueLabel, getDefaultSRSState } from '../utils/srs';
 import { formatDate } from '../utils/date';
+import { writeFailureMessage } from '../utils/writeFailure';
 import { useDecksContext } from '../context/decksContext';
 
 /**
@@ -65,11 +66,11 @@ export default function CardDetailModal({ card, deckId, onClose }) {
   const handleSaveDefinition = async () => {
     setIsBusy(true);
     setActionError(null);
-    const ok = await updateCard(card.id, {
+    const result = await updateCard(card.id, {
       back: applyCustomMeanings(card.back, trimmedDraft),
     });
-    if (ok) setSavedNotice(true);
-    else setActionError("Couldn't save your definition. Please try again.");
+    if (result.ok) setSavedNotice(true);
+    else setActionError(writeFailureMessage(result, "Couldn't save your definition. Please try again."));
     setIsBusy(false);
   };
 
@@ -77,14 +78,16 @@ export default function CardDetailModal({ card, deckId, onClose }) {
     setIsBusy(true);
     setActionError(null);
     const reverted = revertMeanings(card.back);
-    const ok = await updateCard(card.id, { back: reverted });
+    const result = await updateCard(card.id, { back: reverted });
     // Only pull the textarea back in step once the write succeeded, so a failed
     // revert doesn't show the user text that isn't actually saved.
-    if (ok) {
+    if (result.ok) {
       setDraftMeanings(reverted.meanings ?? '');
       setSavedNotice(false);
     } else {
-      setActionError("Couldn't restore the original definition. Please try again.");
+      setActionError(
+        writeFailureMessage(result, "Couldn't restore the original definition. Please try again."),
+      );
     }
     setIsBusy(false);
   };
@@ -94,11 +97,11 @@ export default function CardDetailModal({ card, deckId, onClose }) {
     setActionError(null);
     // getDefaultSRSState() is the exact state a brand-new card starts in, so
     // reset and card creation can't drift apart.
-    const ok = await updateCardSRS(card.id, getDefaultSRSState());
+    const result = await updateCardSRS(card.id, getDefaultSRSState());
     // Only dismiss the confirm when it actually worked — otherwise the box
     // disappearing reads as success.
-    if (ok) setConfirming(null);
-    else setActionError("Couldn't reset this card. Please try again.");
+    if (result.ok) setConfirming(null);
+    else setActionError(writeFailureMessage(result, "Couldn't reset this card. Please try again."));
     setIsBusy(false);
   };
 
@@ -108,19 +111,22 @@ export default function CardDetailModal({ card, deckId, onClose }) {
     // quick taps would both see "not there yet" and create duplicates.
     setPendingDeckId(targetDeckId);
     setActionError(null);
-    const ok = await copyCardToDeck(targetDeckId, card);
-    if (ok) setCopiedDeckIds((prev) => new Set([...prev, targetDeckId]));
-    else setActionError("Couldn't add the card to that deck. Please try again.");
+    const result = await copyCardToDeck(targetDeckId, card);
+    if (result.ok) setCopiedDeckIds((prev) => new Set([...prev, targetDeckId]));
+    else
+      setActionError(
+        writeFailureMessage(result, "Couldn't add the card to that deck. Please try again."),
+      );
     setPendingDeckId(null);
   };
 
   const handleRemove = async () => {
     setIsBusy(true);
     setActionError(null);
-    const ok = await removeCardFromDeck(deckId, card.id);
-    if (ok) onClose();
+    const result = await removeCardFromDeck(card.id);
+    if (result.ok) onClose();
     else {
-      setActionError("Couldn't remove this card. Please try again.");
+      setActionError(writeFailureMessage(result, "Couldn't remove this card. Please try again."));
       setIsBusy(false);
     }
   };

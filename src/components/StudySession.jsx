@@ -1,10 +1,11 @@
-import { useReducer } from 'react';
+import { useReducer, useState } from 'react';
 import { calculateNextReview, getCardsForReview } from '../utils/srs';
 import { initStudySession, studySessionReducer } from '../reducers/studySession';
 import { useBackButton } from '../hooks/useBackButton';
 import { useNavigation } from '../context/navigationContext';
 import { useDecksContext } from '../context/decksContext';
 import { useSelectedDeck } from '../hooks/useSelectedDeck';
+import { writeFailureMessage } from '../utils/writeFailure';
 
 const RATINGS = [
   { quality: 0, label: 'Again', color: '#dc3545', hint: 'Complete blackout' },
@@ -35,6 +36,11 @@ export default function StudySession() {
   );
   const { queue, currentIndex, isFlipped, sessionStats, done } = state;
 
+  // What to say if an SRS write has failed this session, or '' if none has.
+  // Local, not in the reducer: the reducer is pure and this is the outcome of
+  // a network call.
+  const [saveError, setSaveError] = useState('');
+
   // Device Back exits the session (same as the Exit button) rather than
   // leaving the app mid-review.
   useBackButton(true, backToDetail);
@@ -44,15 +50,47 @@ export default function StudySession() {
 
   const handleFlip = () => dispatch({ type: 'FLIP' });
 
-  const handleRate = (quality) => {
+  const handleRate = async (quality) => {
     // The SM-2 math and the cloud write stay here: a reducer has to be pure, so
     // it receives the already computed `metrics` rather than calculating them.
     const metrics = calculateNextReview(current, quality);
-    updateCardSRS(current.id, metrics);
 
+    // Advance FIRST, then write. The next card should appear the instant the
+    // rating is tapped — making a learner wait on a round trip between every
+    // card is the one place in the app where latency would really be felt.
     const ratingKey = RATINGS.find(r => r.quality === quality)?.label.toLowerCase();
     dispatch({ type: 'RATE', quality, ratingKey, metrics });
+
+    // A failed write used to be silent: the boolean was dropped on the floor.
+    // The session is safe to continue — the reducer already has the right
+    // state, and only the cloud copy is lost, so the card simply comes up
+    // again in a later session. But the learner is told, because "I reviewed
+    // these" and "these were saved" have to mean the same thing.
+    //
+    // An expired session is the case that matters most here: it fails EVERY
+    // remaining review, so the generic notice would let someone rate thirty
+    // cards and lose all of them without ever being told the fix is to sign in
+    // again. writeFailureMessage is what surfaces that instead.
+    const result = await updateCardSRS(current.id, metrics);
+    if (!result.ok) {
+      setSaveError(
+        writeFailureMessage(
+          result,
+          'Some reviews couldn’t be saved. They’ll come up again next time.',
+        ),
+      );
+    }
   };
+
+  // Shown once any review fails to save, and stays for the rest of the session.
+  // Deliberately not a retry: retrying reviews is a real design of its own
+  // (ordering, conflicts, what happens if the session ends mid-retry) and
+  // guessing at it here would be worse than reporting honestly.
+  const saveFailedNotice = saveError && (
+    <p className="text-warning small text-center mb-0" role="alert">
+      {saveError}
+    </p>
+  );
 
   if (done) {
     const reviewed = sessionStats.again + sessionStats.hard + sessionStats.good + sessionStats.easy;
@@ -93,6 +131,8 @@ export default function StudySession() {
           ))}
         </div>
 
+        {saveFailedNotice}
+
         <button className="btn btn-dark mt-3" onClick={backToDetail}>
           Back to Deck
         </button>
@@ -131,6 +171,8 @@ export default function StudySession() {
         </div>
         <span className="text-muted small">{currentIndex}/{total}</span>
       </div>
+
+      {saveFailedNotice && <div className="mb-3">{saveFailedNotice}</div>}
 
       {/* Card */}
       <div

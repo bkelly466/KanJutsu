@@ -2,6 +2,7 @@ import { useState } from 'react';
 import CreateDeckModal from './CreateDeckModal';
 import Modal from './Modal';
 import { sourceKey, getCardKey } from '../utils/card';
+import { writeFailureMessage } from '../utils/writeFailure';
 import { useNavigation } from '../context/navigationContext';
 import { useDecksContext } from '../context/decksContext';
 
@@ -34,20 +35,28 @@ export default function AddToDeckModal() {
   const subtitle = (item.meanings || []).slice(0, 3).join(', ');
 
   // Only mark the deck "✓ Added" once the cloud write actually succeeds —
-  // addCardToDeck resolves to false on failure, and says so inside this modal.
+  // a failed write reports `ok: false`, and says so inside this modal.
   const handleAdd = async (deckId) => {
     setAddError('');
-    const ok = await addCardToDeck(deckId, item, type);
-    if (ok) setAddedDeckIds(prev => new Set([...prev, deckId]));
-    else setAddError('Couldn’t add that card. Check your connection and try again.');
+    const result = await addCardToDeck(deckId, item, type);
+    if (result.ok) setAddedDeckIds(prev => new Set([...prev, deckId]));
+    else setAddError(
+      writeFailureMessage(result, 'Couldn’t add that card. Check your connection and try again.'),
+    );
   };
 
   const handleCreate = async (deckData) => {
-    // createDeck is async now (cloud); await the new id before adding the card.
-    const newId = await createDeck(deckData);
+    // Close BEFORE awaiting, matching DeckList: CreateDeckModal has no busy
+    // state and doesn't disable its submit button, so leaving it up for the
+    // whole round trip means a second tap creates a second deck.
     setShowCreate(false);
-    if (newId) handleAdd(newId);
-    else setAddError('Couldn’t create that deck. Check your connection and try again.');
+    // The new deck's id comes back as `data`; the card can't be added until
+    // the deck exists, so this awaits before calling handleAdd.
+    const result = await createDeck(deckData);
+    if (result.ok) handleAdd(result.data);
+    else setAddError(
+      writeFailureMessage(result, 'Couldn’t create that deck. Check your connection and try again.'),
+    );
   };
 
   const isInDeck = (deck) =>
