@@ -99,7 +99,14 @@ async function fetchEntries(keyword) {
     throw new Error('Word lookup failed. Please try again.', { cause });
   }
 
-  return (json.data || [])
+  // Guarded rather than trusted: a body of `null`, or a `data` that arrived as
+  // an object, would make `.map` throw a raw TypeError and put "x.map is not a
+  // function" on screen instead of the careful copy above. Every Token lookup
+  // in the Sentence tab comes through here too, so that would break both tabs.
+  // sentence.js was given the same guard in #25.
+  if (!Array.isArray(json?.data)) return [];
+
+  return json.data
     .map(normalizeWord)
     .filter(Boolean)
     .slice(0, MAX_WORD_RESULTS);

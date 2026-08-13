@@ -244,6 +244,17 @@ describe('searchWords', () => {
     await expect(searchWords('食べる')).rejects.toThrow('Word lookup failed. Please try again.');
   });
 
+  it('treats a success with no data array as no results, not a crash', async () => {
+    // A 200 whose body isn't the shape we expect — `null`, or a `data` that
+    // came back as an object. Unguarded, `.map` throws a raw TypeError and
+    // "x.map is not a function" lands on screen instead of the careful copy.
+    for (const body of [null, {}, { data: null }, { data: { 0: 'entry' } }]) {
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => body })));
+
+      await expect(searchWords('食べる')).resolves.toEqual({ results: [], resolvedFrom: null });
+    }
+  });
+
   it('does not leak a JSON parse error to the user', async () => {
     // A proxy returning an HTML error page with a 200.
     vi.stubGlobal('fetch', vi.fn(async () => ({
