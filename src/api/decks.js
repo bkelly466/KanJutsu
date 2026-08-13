@@ -1,28 +1,20 @@
 /**
- * Deck and Card data access.
+ * Deck and Card data access — every AppSync call for the flashcards feature,
+ * plus the translation between what the API stores and what the app uses.
+ * Nothing above this file knows a Card is a DynamoDB record; nothing in it
+ * knows about React.
  *
- * Every AppSync call for the flashcards feature lives here, along with the
- * translation between what the API stores and what the app uses. Same seam
- * src/api/words.js draws around Jisho: nothing above this file knows that a
- * Card is a DynamoDB record, and nothing in this file knows about React.
+ * **The AWSJSON rule.** `Deck.category` and `Card.back` are `a.json()` fields
+ * and the Amplify client does NOT serialize them: JSON.stringify on write,
+ * JSON.parse on read, every time. `toModelInput` and `toUiCard` are the only
+ * two places it happens, and decks.test.js asserts the round trip rather than
+ * each half — the bug that shipped in 523c9b4 was a mismatch BETWEEN the halves,
+ * which testing them separately would have missed. A plain module rather than a
+ * hook so that test can exist at all; this suite runs in Node with no DOM.
  *
- * The reason it's a plain module rather than living in the hook that calls it:
- * the AWSJSON rule below is a hard rule that has already shipped broken once
- * (commit 523c9b4 — Create Deck failed silently), and this project's test suite
- * runs in Node with no DOM. A plain module can be tested; a hook can't.
- *
- * **The AWSJSON rule.** `Deck.category` and `Card.back` are `a.json()` fields.
- * The Amplify client does NOT serialize them: they must be JSON.stringify-ed on
- * write and JSON.parse-ed on read, every time. `toModelInput` and `toUiCard`
- * are the only two places that happens, and decks.test.js asserts the round
- * trip rather than each half — the bug that shipped was a mismatch BETWEEN the
- * two halves, which testing them separately would not have caught.
- *
- * **Failures throw**, following the convention set by words.js and sentence.js:
- * `error.message` is copy that can go straight in front of the user,
- * `error.cause` carries the technical detail for devtools, and `error.code` is
- * one of the two codes in utils/writeFailure.js. Callers never have to inspect
- * an `errors` array or decide what to say.
+ * **Failures throw**, as in words.js and sentence.js: `error.message` is
+ * user-facing copy, `error.cause` the technical detail, and `error.code` one of
+ * utils/writeFailure.js's two codes. Callers never inspect an `errors` array.
  */
 
 import { generateClient } from 'aws-amplify/data';
@@ -33,10 +25,9 @@ import { classifyWriteFailure } from '../utils/writeFailure';
 /**
  * The Amplify data client, created on first use and reused after.
  *
- * Lazy on purpose, and it must stay that way: src/main.jsx calls
- * `Amplify.configure(outputs)` AFTER its import block, so a `generateClient()`
- * at module scope would run against an unconfigured Amplify. (This is why the
- * old code hid the call inside a `useMemo`.)
+ * Lazy on purpose and must stay that way: src/main.jsx calls
+ * `Amplify.configure(outputs)` after its import block, so a `generateClient()`
+ * at module scope would run against an unconfigured Amplify.
  */
 let client = null;
 
@@ -57,14 +48,13 @@ export function resetDecksClient() {
 /**
  * Every Deck the signed-in user owns, with its Cards already attached.
  *
- * One function rather than two lists plus a join at the call site, because the
- * join is where `Deck.category` gets parsed — half of the AWSJSON round trip,
- * and not something a component should be holding.
+ * One function rather than two lists joined at the call site, because the join
+ * is where `Deck.category` gets parsed — half the AWSJSON round trip, and not
+ * something a component should hold.
  *
- * Note what this deliberately does NOT do: throw on an `errors` array. AppSync
- * can return usable rows alongside a partial error, and the previous behaviour
- * was to render what came back. Turning that into a hard failure would take a
- * degraded read and make it a blank screen. Network-level failures still throw.
+ * Deliberately does NOT throw on an `errors` array: AppSync can return usable
+ * rows alongside a partial error, and turning that into a hard failure would
+ * make a degraded read a blank screen. Network failures still throw.
  */
 export async function listDecks() {
   try {
@@ -91,11 +81,10 @@ export async function listDecks() {
 /* -------------------------------------------------------------------------- */
 /* Writing                                                                    */
 /*                                                                            */
-/* Each write below takes the target Deck's OWN cards where it needs them,    */
-/* rather than the whole card list. Passing them in (instead of querying)     */
-/* keeps every write to a single round trip and makes the dedupe and cascade  */
-/* rules testable with a plain array. It also makes the staleness honest: the */
-/* cards are a snapshot from before the call, which is exactly why two fast   */
+/* Each write takes the target Deck's OWN cards where it needs them. Passing  */
+/* them in rather than querying keeps every write to one round trip and makes */
+/* the dedupe and cascade rules testable with a plain array. The staleness is */
+/* honest: they are a snapshot from before the call, which is why two fast    */
 /* taps can both see "not there yet" — see CardDetailModal's handleCopy.      */
 /* -------------------------------------------------------------------------- */
 
@@ -118,8 +107,8 @@ export async function createDeck({ name, description, category }) {
 export async function updateDeck(deckId, updates) {
   try {
     const payload = { id: deckId, ...updates };
-    // Callers pass `category` as an object; the schema wants AWSJSON. Guarded
-    // by a type check so an already-serialized value isn't double-encoded.
+    // Callers pass `category` as an object and the schema wants AWSJSON. The
+    // type check stops an already-serialized value being double-encoded.
     if (payload.category != null && typeof payload.category !== 'string') {
       payload.category = JSON.stringify(payload.category);
     }
@@ -130,12 +119,10 @@ export async function updateDeck(deckId, updates) {
 }
 
 /**
- * Delete a Deck and every Card in it.
- *
- * There's no cascade in the schema, so it happens here — and the ORDER is the
- * whole point. Every Card must be confirmed gone before the Deck goes: delete
- * the Deck first and a failed Card delete leaves orphans that no longer belong
- * to anything, so they're invisible in the UI and impossible to remove.
+ * Delete a Deck and every Card in it. There is no cascade in the schema, so it
+ * happens here, and the ORDER is load-bearing: every Card must be confirmed
+ * gone before the Deck is. Delete the Deck first and a failed Card delete
+ * leaves orphans belonging to nothing — invisible in the UI and unremovable.
  *
  * @param {string} deckId
  * @param {Array}  cards   that Deck's Cards
@@ -146,7 +133,7 @@ export async function deleteDeck(deckId, cards = []) {
       cards.map((card) => getClient().models.Card.delete({ id: card.id })),
     );
     // delete() reports failure via `errors` rather than throwing, so an
-    // unchecked response would look exactly like a success.
+    // unchecked response is indistinguishable from a success.
     results.forEach(throwIfErrors);
 
     throwIfErrors(await getClient().models.Deck.delete({ id: deckId }));
@@ -179,14 +166,13 @@ export async function addCardToDeck(deckId, item, type = 'kanji', cards = []) {
 }
 
 /**
- * Copy an EXISTING Card into another Deck.
+ * Copy an EXISTING Card into another Deck. A no-op if the target already holds
+ * it, as addCardToDeck is.
  *
- * addCardToDeck can't be reused: it takes raw lookup data and runs it through
- * createCard, which we no longer have for a saved Card. This goes through
- * toModelInput instead, which already accepts the built-card shape.
+ * The copy starts with fresh SRS state: a different Deck is a separate study
+ * context, and inheriting the original's streak would misrepresent it.
  *
- * The copy starts with fresh SRS state — a different Deck is a separate study
- * context, so inheriting the original's streak would misrepresent it.
+ * Not addCardToDeck, which needs the raw lookup data a saved Card no longer has.
  */
 export async function copyCardToDeck(targetDeckId, card, cards = []) {
   try {
@@ -222,10 +208,11 @@ export async function updateCardSRS(cardId, srsMetrics) {
 }
 
 /**
- * Update non-SRS Card fields (currently the custom definition in `back`).
+ * Update non-SRS Card fields — currently the custom definition in `back`.
  *
- * Separate from updateCardSRS because `back` is an a.json() field and has to be
- * stringified, exactly as updateDeck does for `category`.
+ * Separate from updateCardSRS because `back` is an a.json() field needing the
+ * stringify updateDeck does for `category`. A definition edit sent through
+ * updateCardSRS would be stored unserialized.
  */
 export async function updateCard(cardId, updates) {
   try {
@@ -253,9 +240,9 @@ function throwIfErrors({ errors } = {}) {
 }
 
 /**
- * Wrap whatever went wrong in the error shape this module promises: a
- * user-facing `message`, the original on `cause`, and a `code`. Reads use it
- * too, which is why it is not called writeError.
+ * Whatever went wrong, in the error shape this module promises: a user-facing
+ * `message`, the original on `cause`, and a `code`. Reads use it too, which is
+ * why it isn't named writeError.
  */
 function toFailure(cause) {
   const { code, message } = classifyWriteFailure(cause);

@@ -1,9 +1,6 @@
 /**
- * Kanji data access layer.
- *
- * Core kanji data comes from kanjiapi.dev and is enriched with the most common
- * words from the Jisho API (via the shared proxy — see ./jishoProxy.js for how
- * the proxying works locally vs. in production).
+ * Kanji data access layer — kanjiapi.dev for the core data, enriched with the
+ * most common words from Jisho via the shared proxy (./jishoProxy.js).
  */
 
 import { JISHO_PROXY } from './jishoProxy';
@@ -22,11 +19,8 @@ export function extractKanji(text) {
 }
 
 /**
- * Fetch core data for a single kanji. Returns null if it isn't found.
- *
- * A network failure throws with copy that's safe to show, the way words.js
- * does: the raw rejection here is the browser's "Failed to fetch", and the
- * overlay renders whatever message it's given.
+ * Core data for a single kanji, or null when kanjiapi doesn't have it. Throws
+ * with user-facing copy on failure, as words.js does.
  */
 async function fetchKanjiDetails(char) {
   let response;
@@ -36,14 +30,13 @@ async function fetchKanjiDetails(char) {
     throw new Error('Could not load kanji info — check your connection.', { cause });
   }
 
-  // 404 is kanjiapi's honest "no such character" and is NOT an error — the
-  // overlay says so plainly instead of offering a pointless retry.
+  // 404 is an honest "no such character", not an error — the overlay says so
+  // plainly rather than offering a pointless retry.
   if (response.status === 404) return null;
 
-  // Anything else that isn't ok is a fault at their end, and it matters that
-  // the two are told apart now that answers are cached: a 500 recorded as "no
-  // such kanji" would stick for the whole session, and retrying is exactly
-  // what would fix it.
+  // Anything else is a fault at their end, and the two must stay distinct now
+  // that answers are cached: a 500 recorded as "no such kanji" would stick for
+  // the session, when retrying is exactly what would fix it.
   if (!response.ok) {
     throw new Error('Could not load kanji info.', {
       cause: new Error(`kanjiapi returned ${response.status} for "${char}"`),
@@ -58,16 +51,13 @@ async function fetchKanjiDetails(char) {
 }
 
 /**
- * Fetch the most common words for a kanji from the Jisho proxy, normalised to
- * the same word shape the word lookup uses (see normalizeWord in words.js) —
- * so components never see Jisho's raw nested structure.
+ * The most common words for a kanji, normalised to the same shape the word
+ * lookup returns.
  *
- * Returns **null** when the request itself failed, as against `[]` for a
- * character Jisho simply has no words for. A hiccup here must never discard
- * the (already successful) kanji entry — these are two different hosts, and
- * kanjiapi's half is the part the overlay is mostly for — but the caller does
- * have to be able to tell "no words" from "couldn't ask", because the answer
- * is cached and only one of those is worth keeping.
+ * `null` means the request failed; `[]` means Jisho has no words for this
+ * character. The distinction is load-bearing — a failure here must not discard
+ * the kanji entry that already succeeded (different host, and the part the
+ * overlay is mostly for), but only one of the two answers is worth caching.
  */
 async function fetchCommonWords(char) {
   try {
@@ -85,14 +75,10 @@ async function fetchCommonWords(char) {
 }
 
 /**
- * char → its entry, cached. Two requests per kanji (core data plus common
- * words), and the explorer asks for the same character constantly: the drill
- * stack's Back button is *always* a repeat lookup, and a word's kanji get
- * tapped again and again across a session.
- *
- * `null` (not found) is cached like any other answer — see lookupCache.js.
- * Kanji data doesn't change during a session, so nothing here needs
- * invalidating.
+ * char → its entry. Worth caching: an entry costs two requests, and the
+ * explorer asks for the same character constantly — the drill stack's Back
+ * button is always a repeat lookup. `null` (not found) is cached like any other
+ * answer, and nothing needs invalidating within a session.
  */
 const entryCache = createLookupCache(
   async (char) => {
@@ -103,27 +89,23 @@ const entryCache = createLookupCache(
     return {
       ...details,
       commonWords: commonWords ?? [],
-      // Jisho failed while kanjiapi succeeded. The entry is still worth
-      // showing — readings, meanings and strokes are all here — but the word
-      // list is missing for a reason the user can't see, so say so and don't
-      // remember it.
+      // Jisho failed where kanjiapi succeeded. Readings, meanings and strokes
+      // are all here, so the entry is still worth showing — but the word list
+      // is missing for a reason the user can't see.
       commonWordsUnavailable: commonWords === null,
     };
   },
   {
-    // Without this, one Jisho blip would hide Common Words for that character
-    // for the rest of the session, indistinguishable from a kanji that has
-    // none. Before this cache existed, re-opening the overlay recovered; the
-    // cache has to keep that true.
+    // Without this, one Jisho blip hides Common Words for that character for
+    // the whole session, indistinguishable from a kanji that has none.
+    // Re-opening the overlay used to recover; the cache has to keep that true.
     isCacheable: (entry) => entry === null || !entry.commonWordsUnavailable,
   }
 );
 
 /**
- * Fetch a single kanji, enriched with its common words. Used by the kanji
- * info overlay (tap-a-character-to-explore). Returns null if not found.
- *
- * Cached per character, so a repeat open costs nothing.
+ * A single kanji enriched with its common words, or null when kanjiapi doesn't
+ * have the character. Cached, so a repeat open costs nothing.
  */
 export function fetchKanjiEntry(char) {
   return entryCache.load(char);
@@ -131,11 +113,11 @@ export function fetchKanjiEntry(char) {
 
 /**
  * The entry already known for `char`, or `undefined` if it has never been
- * fetched. Safe to call during render — it never starts a request.
+ * fetched. Safe during render — it never starts a request.
  *
- * `undefined` and `null` are different answers: "not looked up yet" versus
- * "looked up, and kanjiapi doesn't have this character". The overlay needs to
- * tell them apart to decide between a spinner and a plain "no data" message.
+ * `undefined` and `null` are different answers — "not looked up yet" versus
+ * "looked up, and kanjiapi doesn't have it" — and the overlay chooses between a
+ * spinner and a "no data" message on exactly that.
  */
 export function peekKanjiEntry(char) {
   return entryCache.peek(char);

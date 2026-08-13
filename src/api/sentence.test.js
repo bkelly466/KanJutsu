@@ -9,14 +9,9 @@ import {
 import { CORPUS } from './sentence.fixtures';
 
 /**
- * Pin the analyzer URL.
- *
- * sentence.js reads it from amplify_outputs.json, which is a REAL sandbox URL
- * on a developer's machine and a `{}` stub in CI (see the workflow). Anything
- * conditioned on that value — asserting the request URL, or the "not
- * configured" guard in warmUpAnalyzer — would otherwise pass on one machine and
- * fail on the other. Mocking the import makes this suite say the same thing
- * everywhere, which is the whole point of an offline test.
+ * Pin the analyzer URL, which sentence.js reads from amplify_outputs.json — a
+ * real sandbox URL on a developer's machine, a `{}` stub in CI. Without this,
+ * anything asserting a request URL passes on one and fails on the other.
  */
 vi.mock('../../amplify_outputs.json', () => ({
   default: { custom: { sentenceAnalyzerUrl: 'https://analyzer.test/' } },
@@ -25,19 +20,13 @@ vi.mock('../../amplify_outputs.json', () => ({
 /* -------------------------------------------------------------------------- */
 /* Test seam                                                                  */
 /*                                                                            */
-/* Everything here attaches to analyzeSentence() with `fetch` stubbed, so the  */
-/* suite runs offline like the rest of the project. src/utils/chunk.js gets    */
-/* NO test file of its own: the merge rule is only meaningful against          */
-/* morphemes IPADIC really emits, so testing it in isolation would test less   */
-/* while costing a second seam. One seam, real inputs. See ADR-0003.           */
+/* Everything attaches to analyzeSentence() with `fetch` stubbed, so the suite */
+/* runs offline. src/utils/chunk.js gets no test file of its own — one seam,   */
+/* real inputs; see ADR-0003.                                                 */
 /*                                                                            */
 /* The inputs in sentence.fixtures.js are RECORDED from the deployed analyzer  */
-/* by scripts/record-corpus.mjs, never hand-written — being wrong about what a */
-/* segmenter emits is exactly what disqualified the lighter alternative during */
-/* design. The expected boundaries below were reviewed by hand.                */
-/*                                                                            */
-/* The analyzer URL is mocked at the top of this file, so request URLs can be   */
-/* asserted and mean the same thing on every machine.                          */
+/* by scripts/record-corpus.mjs, never hand-written. The expected boundaries   */
+/* below were reviewed by hand.                                               */
 /* -------------------------------------------------------------------------- */
 
 /** Look up recorded analyzer output for a corpus sentence. */
