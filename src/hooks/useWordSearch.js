@@ -46,6 +46,9 @@ export function useWordSearch() {
    * Run a search. Pass `{ allowDeinflection: false }` to look the query up
    * exactly as typed, skipping the 飲んだ → 飲む fallback — that's what the
    * "search X instead" link in the results banner uses.
+   *
+   * Returns immediately; there is nothing to await. The results arrive through
+   * `results` / `isLoading` on a later render.
    */
   const search = (query, { allowDeinflection = true } = {}) => {
     const trimmedQuery = query.trim();
@@ -74,7 +77,11 @@ export function useWordSearch() {
     error:
       inputError ||
       error ||
-      (data && results.length === 0 ? `No words found for "${request.query}".` : ''),
+      // `request?`, not `request.`: clearing the box sets `request` to null
+      // while `data` still holds the previous search for one discarded render.
+      // The `||` above short-circuits before this today, which is luck rather
+      // than design.
+      (data && results.length === 0 ? `No words found for "${request?.query}".` : ''),
     // Set when the search that produced `results` used a different word than
     // the one typed — e.g. the user searched 飲んだ and we looked up 飲む. null
     // otherwise. See src/api/words.js.

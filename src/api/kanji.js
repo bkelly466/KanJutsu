@@ -33,9 +33,7 @@ async function fetchKanjiDetails(char) {
   try {
     response = await fetch(`${KANJI_API_BASE}/${encodeURIComponent(char)}`);
   } catch (cause) {
-    throw new Error('Could not load kanji info. Please check your connection and try again.', {
-      cause,
-    });
+    throw new Error('Could not load kanji info — check your connection.', { cause });
   }
 
   // 404 is kanjiapi's honest "no such character" and is NOT an error — the
@@ -47,7 +45,7 @@ async function fetchKanjiDetails(char) {
   // such kanji" would stick for the whole session, and retrying is exactly
   // what would fix it.
   if (!response.ok) {
-    throw new Error('Could not load kanji info. Please try again.', {
+    throw new Error('Could not load kanji info.', {
       cause: new Error(`kanjiapi returned ${response.status} for "${char}"`),
     });
   }
@@ -55,7 +53,7 @@ async function fetchKanjiDetails(char) {
   try {
     return await response.json();
   } catch (cause) {
-    throw new Error('Could not load kanji info. Please try again.', { cause });
+    throw new Error('Could not load kanji info.', { cause });
   }
 }
 
@@ -63,41 +61,27 @@ async function fetchKanjiDetails(char) {
  * Fetch the most common words for a kanji from the Jisho proxy, normalised to
  * the same word shape the word lookup uses (see normalizeWord in words.js) —
  * so components never see Jisho's raw nested structure.
- * Returns an empty list on failure so a Jisho hiccup never discards the
- * (already successful) kanji entry.
+ *
+ * Returns **null** when the request itself failed, as against `[]` for a
+ * character Jisho simply has no words for. A hiccup here must never discard
+ * the (already successful) kanji entry — these are two different hosts, and
+ * kanjiapi's half is the part the overlay is mostly for — but the caller does
+ * have to be able to tell "no words" from "couldn't ask", because the answer
+ * is cached and only one of those is worth keeping.
  */
 async function fetchCommonWords(char) {
   try {
     const response = await fetch(`${JISHO_PROXY}?keyword=${encodeURIComponent(char)}`);
-    if (!response.ok) return [];
+    if (!response.ok) return null;
     const json = await response.json();
-    return (json.data || [])
+    if (!Array.isArray(json?.data)) return null;
+    return json.data
       .slice(0, MAX_COMMON_WORDS)
       .map(normalizeWord)
       .filter(Boolean);
   } catch {
-    return [];
+    return null;
   }
-}
-
-/**
- * Look up every kanji found in `query`, each enriched with common words.
- * Characters that can't be found are skipped.
- */
-export async function searchKanji(query) {
-  const chars = extractKanji(query);
-  if (chars.length === 0) return [];
-
-  const entries = await Promise.all(
-    chars.map(async (char) => {
-      const details = await fetchKanjiDetails(char);
-      if (!details) return null;
-      const commonWords = await fetchCommonWords(char);
-      return { ...details, commonWords };
-    })
-  );
-
-  return entries.filter(Boolean);
 }
 
 /**
@@ -110,12 +94,30 @@ export async function searchKanji(query) {
  * Kanji data doesn't change during a session, so nothing here needs
  * invalidating.
  */
-const entryCache = createLookupCache(async (char) => {
-  const details = await fetchKanjiDetails(char);
-  if (!details) return null;
-  const commonWords = await fetchCommonWords(char);
-  return { ...details, commonWords };
-});
+const entryCache = createLookupCache(
+  async (char) => {
+    const details = await fetchKanjiDetails(char);
+    if (!details) return null;
+
+    const commonWords = await fetchCommonWords(char);
+    return {
+      ...details,
+      commonWords: commonWords ?? [],
+      // Jisho failed while kanjiapi succeeded. The entry is still worth
+      // showing — readings, meanings and strokes are all here — but the word
+      // list is missing for a reason the user can't see, so say so and don't
+      // remember it.
+      commonWordsUnavailable: commonWords === null,
+    };
+  },
+  {
+    // Without this, one Jisho blip would hide Common Words for that character
+    // for the rest of the session, indistinguishable from a kanji that has
+    // none. Before this cache existed, re-opening the overlay recovered; the
+    // cache has to keep that true.
+    isCacheable: (entry) => entry === null || !entry.commonWordsUnavailable,
+  }
+);
 
 /**
  * Fetch a single kanji, enriched with its common words. Used by the kanji

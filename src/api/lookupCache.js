@@ -37,11 +37,18 @@
  * A rejected lookup is deliberately NOT cached — otherwise a single network
  * blip would make that key permanently un-lookupable for the rest of the
  * session, and a "Try again" button would do nothing. A *successful* lookup is
- * always cached, including one that came back empty: "looked up, and there's
- * nothing" is a real answer plenty of words genuinely have, and it has to stay
- * cheap.
+ * cached by default, including one that came back empty: "looked up, and
+ * there's nothing" is a real answer plenty of words genuinely have, and it has
+ * to stay cheap.
+ *
+ * `options.isCacheable(value)` narrows that default. Some answers are good
+ * enough to show but not to keep — an entry whose optional half failed to load
+ * is complete enough to render, and remembering it would turn one bad moment
+ * into a permanent one. Return false and the value is still resolved to
+ * everyone waiting on it; it just isn't remembered, so the next `load` asks
+ * again. Called only on success, and a value it rejects is never `peek`able.
  */
-export function createLookupCache(loader) {
+export function createLookupCache(loader, { isCacheable = () => true } = {}) {
   /** key → in-flight-or-settled Promise. */
   const pending = new Map();
   /** key → the value that key's lookup settled on, for the keys where one has. */
@@ -56,6 +63,13 @@ export function createLookupCache(loader) {
       // like any other failure, rather than blowing up the caller's render.
       .then(() => loader(key))
       .then((value) => {
+        if (!isCacheable(value)) {
+          // Good enough to return, not good enough to keep. Dropping the
+          // promise too, so the next caller starts a fresh request rather than
+          // re-resolving this one forever.
+          pending.delete(key);
+          return value;
+        }
         // Record it synchronously-readable for peek() below.
         settled.set(key, value);
         return value;

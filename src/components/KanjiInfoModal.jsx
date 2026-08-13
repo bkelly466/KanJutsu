@@ -51,37 +51,42 @@ export default function KanjiInfoModal({ initialKanji, onClose }) {
 
   return (
     <Modal onClose={onClose} size="lg" scrollable>
-      {/* Back appears only once we've drilled at least one level deep.
-          The close (X) is the card's own when there IS a card; the loading,
-          error and no-data states have no card, so the header carries one for
-          them rather than leaving the overlay dismissable only by Escape. */}
-      {(stack.length > 1 || !entry) && (
-        <div className="modal-header border-0 pb-0">
-          {stack.length > 1 && (
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-secondary touch-target"
-              onClick={handleBack}
-            >
-              ← Back
-            </button>
-          )}
-          {!entry && (
-            <button
-              type="button"
-              className="btn-close ms-auto"
-              aria-label="Close"
-              onClick={onClose}
-            ></button>
-          )}
-        </div>
-      )}
+      {/* Always rendered, contents varying, so the body below doesn't jump as
+          a lookup resolves — an uncached open would otherwise drop this whole
+          header the moment the card arrived, which on a phone reads as a
+          flicker.
+
+          Back appears only once we've drilled at least one level deep. The
+          close (X) is the card's own when there IS a card; the loading, error
+          and no-data states have no card, so the header carries one for them
+          rather than leaving the overlay dismissable only by Escape. */}
+      <div className="modal-header border-0 pb-0">
+        {stack.length > 1 && (
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary touch-target"
+            onClick={handleBack}
+          >
+            ← Back
+          </button>
+        )}
+        {!entry && (
+          <button
+            type="button"
+            className="btn-close ms-auto"
+            aria-label="Close"
+            onClick={onClose}
+          ></button>
+        )}
+      </div>
 
       <div className="modal-body pt-0">
         {isLoading && <p className="text-muted text-center py-4">Loading {current}…</p>}
 
         {/* A failed fetch is recoverable, and now says so. Failures aren't
-            cached (src/api/lookupCache.js), so this really does re-request. */}
+            cached (src/api/lookupCache.js), so this really does re-request.
+            The copy from kanji.js deliberately doesn't end in "please try
+            again" — the button says that. */}
         {!isLoading && error && (
           <div className="text-center py-4">
             <p className="text-danger" role="alert">

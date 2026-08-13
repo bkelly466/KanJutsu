@@ -26,8 +26,18 @@ import { useState, useRef, useEffect } from 'react';
  * @param key   Identifies what's being looked up. Changing it starts a fresh
  *              lookup and throws away the old one's result; `null` means idle
  *              (no request, not loading).
- * @param load  Called with no arguments; returns a Promise of the data. May
- *              close over anything from the current render.
+ *
+ *              Two rules, both load-bearing:
+ *              **It must be a primitive** (string, number, null). It's
+ *              compared with `!==` during render, so an object rebuilt each
+ *              render would never equal the last one and would loop forever.
+ *              **It must name every input `load` reads.** `load` is held in a
+ *              ref and the lookup re-runs on the key alone, so anything `load`
+ *              closes over that the key doesn't mention will be silently
+ *              ignored when it changes — and no lint rule will catch it.
+ * @param load  Called with no arguments; returns a Promise of the data. Free
+ *              to close over the current render's values, subject to the key
+ *              rule above.
  * @param peek  Optional. Returns what's already known for `key` without making
  *              a request, or `undefined` if nothing is. Must be safe to call
  *              during render. This is what lets a cached lookup mount straight
@@ -106,8 +116,13 @@ export function useLookup(key, load, peek) {
         if (cancelled) return;
         setState((previous) =>
           // Returning the previous state object tells React nothing changed, so
-          // it skips the re-render. Worth it because the common case here is a
-          // cache hit confirming what peek already put on screen.
+          // it skips the re-render — the common case being a cache hit
+          // confirming exactly what peek already put on screen.
+          //
+          // Identity, not equality, so this only fires where the cache hands
+          // back the same object twice. It does for the kanji explorer; it
+          // doesn't for the Token overlay, whose peek and load each build a
+          // fresh result object, so that one takes a harmless extra render.
           !previous.isLoading && !previous.error && previous.data === value
             ? previous
             : { data: value, isLoading: false, error: '' }
@@ -132,6 +147,11 @@ export function useLookup(key, load, peek) {
    * makes this a real retry rather than a re-read of the same error.
    */
   const retry = () => {
+    // Nothing to retry when idle — and going to `isLoading` here would strand
+    // the caller on a spinner forever, because the effect below returns early
+    // and nothing would ever clear it.
+    if (key === null || key === undefined) return;
+
     setState({ data: null, isLoading: true, error: '' });
     setAttempt((previous) => previous + 1);
   };

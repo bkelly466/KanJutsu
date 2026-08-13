@@ -94,11 +94,13 @@ describe('fetchKanjiEntry', () => {
     });
 
     await expect(fetchKanjiEntry('食')).rejects.toThrow(
-      'Could not load kanji info. Please check your connection and try again.'
+      'Could not load kanji info — check your connection.'
     );
   });
 
   it('still returns the kanji when its common words fail to load', async () => {
+    // Two different hosts: kanjiapi's half is the part the overlay is mostly
+    // for, so a Jisho failure must not discard it.
     stubUpstreams({
       kanji: () => kanjiFound('食'),
       jisho: () => {
@@ -110,6 +112,21 @@ describe('fetchKanjiEntry', () => {
 
     expect(entry.kanji).toBe('食');
     expect(entry.commonWords).toEqual([]);
+    // Flagged, so the card can say the list is missing rather than looking
+    // identical to a kanji that genuinely has no common words.
+    expect(entry.commonWordsUnavailable).toBe(true);
+  });
+
+  it('tells “Jisho has no words” from “Jisho could not be asked”', async () => {
+    stubUpstreams({
+      kanji: () => kanjiFound('食'),
+      jisho: () => ({ ok: true, json: async () => ({ data: [] }) }),
+    });
+
+    const entry = await fetchKanjiEntry('食');
+
+    expect(entry.commonWords).toEqual([]);
+    expect(entry.commonWordsUnavailable).toBe(false);
   });
 });
 
@@ -123,6 +140,41 @@ describe('caching', () => {
     // Two upstreams, one round of each — the drill stack's Back button is
     // always a repeat lookup, and it should cost nothing.
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not cache an entry whose common words failed to load', async () => {
+    // The regression this guards: before the cache existed, re-opening a kanji
+    // recovered from a Jisho blip. Caching the half-empty entry would have
+    // hidden Common Words for that character for the whole session, with
+    // nothing on screen to say why.
+    let jishoAttempts = 0;
+    stubUpstreams({
+      kanji: () => kanjiFound('食'),
+      jisho: () => {
+        jishoAttempts += 1;
+        if (jishoAttempts === 1) throw new TypeError('Failed to fetch');
+        return {
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                slug: '食べる',
+                japanese: [{ word: '食べる', reading: 'たべる' }],
+                senses: [{ english_definitions: ['to eat'], parts_of_speech: [] }],
+              },
+            ],
+          }),
+        };
+      },
+    });
+
+    const first = await fetchKanjiEntry('食');
+    expect(first.commonWordsUnavailable).toBe(true);
+    expect(peekKanjiEntry('食')).toBeUndefined();
+
+    const second = await fetchKanjiEntry('食');
+    expect(second.commonWordsUnavailable).toBe(false);
+    expect(second.commonWords).toHaveLength(1);
   });
 
   it('does not cache a failure, so Try again really tries again', async () => {

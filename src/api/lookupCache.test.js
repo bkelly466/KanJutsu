@@ -85,6 +85,43 @@ describe('load', () => {
   });
 });
 
+describe('isCacheable', () => {
+  it('returns a value it refuses to keep, and asks again next time', async () => {
+    // The rule the kanji explorer needs: an entry whose optional half failed
+    // is worth showing once, never worth remembering.
+    const loader = vi.fn(async () => ({ partial: true }));
+    const cache = createLookupCache(loader, { isCacheable: (value) => !value.partial });
+
+    await expect(cache.load('食')).resolves.toEqual({ partial: true });
+    expect(cache.peek('食')).toBeUndefined();
+
+    await cache.load('食');
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it('still caches the values it accepts', async () => {
+    const loader = vi.fn(async () => ({ partial: false }));
+    const cache = createLookupCache(loader, { isCacheable: (value) => !value.partial });
+
+    await cache.load('食');
+    await cache.load('食');
+
+    expect(cache.peek('食')).toEqual({ partial: false });
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves every waiter on an uncacheable value, not just the first', async () => {
+    const loader = vi.fn(async () => ({ partial: true }));
+    const cache = createLookupCache(loader, { isCacheable: (value) => !value.partial });
+
+    const [first, second] = await Promise.all([cache.load('食'), cache.load('食')]);
+
+    expect(first).toEqual({ partial: true });
+    expect(second).toEqual({ partial: true });
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('peek', () => {
   it('returns undefined before anything has settled', () => {
     const cache = createLookupCache(echoLoader());
