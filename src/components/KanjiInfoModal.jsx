@@ -5,28 +5,22 @@ import DetailedInfoCard from './DetailedInfoCard';
 import Modal from './Modal';
 
 /**
- * Pleco-style kanji explorer.
- *
- * Opens on top of whatever the user was looking at (their word results) and
- * shows a single kanji's full info. Tapping a kanji inside it — e.g. in the
- * "Common Words" list — drills deeper by pushing onto a navigation stack, so
- * the user can wander from character to character and then Back out, or Close
- * to return exactly where they were.
+ * Pleco-style kanji explorer: one kanji's full info, opened over whatever the
+ * user was looking at. Tapping a kanji inside pushes onto a drill stack, so
+ * they can wander character to character and Back out, or Close to return
+ * exactly where they were.
  *
  * Props:
  *   initialKanji - the character to show first
  *   onClose      - close the whole overlay
  */
 export default function KanjiInfoModal({ initialKanji, onClose }) {
-  // The breadcrumb of kanji we've drilled through. The last item is current.
+  // The drill stack, last item current.
   const [stack, setStack] = useState([initialKanji]);
   const current = stack[stack.length - 1];
 
-  // Fetch whenever the current kanji changes (initial open, drill, or back).
-  // The lifecycle — cancelling a fetch the user drilled away from, the loading
-  // and error states, the retry, and reading the cache so a Back doesn't
-  // re-blink through "Loading 食…" — all lives in useLookup, shared with the
-  // Token overlay and the Dictionary search. See src/hooks/useLookup.js.
+  // Re-fetches on open, drill and Back. The peek is what makes Back instant
+  // rather than re-blinking through "Loading 食…".
   const {
     data: entry,
     isLoading,
@@ -38,13 +32,11 @@ export default function KanjiInfoModal({ initialKanji, onClose }) {
     () => peekKanjiEntry(current)
   );
 
-  // Drill into another kanji (tapped inside the current card).
   const handleDrill = (char) => {
     if (char === current) return;
     setStack((prev) => [...prev, char]);
   };
 
-  // Pop back to the previous kanji in the breadcrumb.
   const handleBack = () => {
     setStack((prev) => prev.slice(0, -1));
   };

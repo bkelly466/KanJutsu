@@ -6,36 +6,32 @@ import { writeFailureMessage } from '../utils/writeFailure';
 import { useNavigation } from '../context/navigationContext';
 import { useDecksContext } from '../context/decksContext';
 
-// Works for both a kanji item (type 'kanji') and a word item (type 'word').
-// What's being added, and closing the picker, both come from navigation context —
-// the picker is opened from the dictionary but rendered up at the app level.
+// The "Add to Deck" picker, for both kanji and word items. What's being added
+// comes from navigation context: the picker is opened from the dictionary or
+// the Sentence tab but rendered at the app level.
 export default function AddToDeckModal() {
   const { deckPickerTarget, closeDeckPicker } = useNavigation();
   const { decks, isLoading, addCardToDeck, createDeck } = useDecksContext();
 
   const [showCreate, setShowCreate] = useState(false);
   const [addedDeckIds, setAddedDeckIds] = useState(new Set());
-  // Local, for the same reason CardDetailModal's actionError is local: the
-  // app-level banner in App.jsx renders inside `.container`, underneath this
-  // fixed-position modal, AND only inside the Decks tab — so a failed write
-  // from the Dictionary or Sentence tab was invisible everywhere. The button
-  // simply stayed on "Add" and the tap looked like it had missed.
+  // Local, like CardDetailModal's actionError: App's banner renders under this
+  // fixed-position modal AND only inside the Decks tab, so a failed write from
+  // the Dictionary or Sentence tab appeared nowhere at all — the button stayed
+  // on "Add" and the tap looked like it had missed.
   const [addError, setAddError] = useState('');
 
-  // App only renders this when a target exists, but guard anyway — and do it
-  // AFTER every hook, so the component can never bail out mid-hook-list. Reading
-  // `deckPickerTarget.item` above the hooks would throw between two of them,
-  // which is a far more confusing failure than rendering nothing.
+  // Guarded even though App only renders this with a target — and AFTER every
+  // hook, so the component can never bail out mid-hook-list.
   if (!deckPickerTarget) return null;
 
-  // Display + dedupe values that differ by item type.
+  // Display and dedupe values, which differ by item type.
   const { item, type = 'kanji' } = deckPickerTarget;
   const key = sourceKey(item, type);
   const title = type === 'word' ? item.word : item.kanji;
   const subtitle = (item.meanings || []).slice(0, 3).join(', ');
 
-  // Only mark the deck "✓ Added" once the cloud write actually succeeds —
-  // a failed write reports `ok: false`, and says so inside this modal.
+  // "✓ Added" only once the cloud write succeeds.
   const handleAdd = async (deckId) => {
     setAddError('');
     const result = await addCardToDeck(deckId, item, type);
@@ -46,12 +42,11 @@ export default function AddToDeckModal() {
   };
 
   const handleCreate = async (deckData) => {
-    // Close BEFORE awaiting, matching DeckList: CreateDeckModal has no busy
-    // state and doesn't disable its submit button, so leaving it up for the
-    // whole round trip means a second tap creates a second deck.
+    // Close BEFORE awaiting, matching DeckList: CreateDeckModal doesn't disable
+    // its submit button, so a second tap would create a second deck.
     setShowCreate(false);
-    // The new deck's id comes back as `data`; the card can't be added until
-    // the deck exists, so this awaits before calling handleAdd.
+    // The card can't be added until the deck exists, hence the await; the new
+    // deck's id comes back as `data`.
     const result = await createDeck(deckData);
     if (result.ok) handleAdd(result.data);
     else setAddError(
@@ -88,9 +83,8 @@ export default function AddToDeckModal() {
           </div>
         )}
 
-        {/* Three states, not two. Telling someone mid-load that they have no
-            decks — and inviting them to create one they already have — is the
-            empty state lying about a loading state. Wording matches App.jsx. */}
+        {/* Three states, not two: telling someone mid-load that they have no
+            decks invites them to create one they already own. */}
         {isLoading && decks.length === 0 ? (
           <p className="text-muted text-center py-3">Loading your decks…</p>
         ) : decks.length === 0 ? (

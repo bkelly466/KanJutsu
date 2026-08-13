@@ -9,50 +9,37 @@ import Modal from './Modal';
 /**
  * The payoff of the Sentence tab: tap a Token, see the Entry it resolves to.
  *
- * Built on the shared Modal so the Sentence stays visible (and unscrolled)
- * behind it and the device Back button closes the overlay rather than leaving
- * the app — no back-button code of its own. See src/components/Modal.jsx.
- *
- * Two things here are deliberate rather than incidental:
+ * Three behaviours are deliberate:
  *
  *   - **The Surface form leads, the Headword follows.** 飲んだ is what the
- *     learner tapped and needs to recognise in the sentence; 飲む is what they
- *     need to memorise. Showing only one of them loses half the lesson, so when
- *     they differ both appear, with the arrow between them.
- *
- *   - **A Token with no Entry is not a dead end.** Names, slang and anything
- *     IPADIC didn't recognise still open the overlay, still say plainly that
- *     there's no entry, and still offer their kanji for drilling — 山田 has no
- *     dictionary entry, but 山 and 田 do. And a merged compound the dictionary
- *     doesn't carry falls back to the word it was built from: tap 東京駅, get
- *     東京, with both words named on screen so the relationship is visible
- *     rather than a silent substitution (issue #30).
- *
- *   - **"Add to Deck" closes the loop.** A Token that resolved to an Entry can
- *     go straight into a Deck, which is the whole point of the Sentence tab
- *     existing alongside the flashcards. It builds the *same* word card the
- *     Dictionary tab builds — same shape, same dedupe key, same SRS defaults —
- *     because both routes end in openDeckPicker(entry, 'word'). The Sentence it
- *     came from is deliberately NOT carried onto the card (see issue #22).
+ *     learner tapped and must recognise; 飲む is what they must memorise. When
+ *     they differ, both appear with an arrow between them.
+ *   - **A Token with no Entry is not a dead end.** Names and slang still open
+ *     the overlay, say plainly there's no entry, and still offer their kanji to
+ *     drill — 山田 has no entry, 山 and 田 do. A merged compound with no entry
+ *     falls back to the word it was built from, naming both on screen rather
+ *     than substituting silently.
+ *   - **"Add to Deck" builds the same card the Dictionary tab builds** — same
+ *     shape, dedupe key and SRS defaults, because both routes end in
+ *     `openDeckPicker(entry, 'word')`. The Sentence is not carried onto it.
  *
  * Props:
- *   token          - the Token that was tapped:
+ *   token          - the Token tapped:
  *                    { surface, baseForm, isUnknown, fallbackBaseForm }
  *   onClose        - dismiss the overlay
- *   onKanjiClick   - called with a single kanji character; the Sentence tab
- *                    swaps this overlay for the kanji explorer (SentenceAnalyzer)
- *   selectedId     - id of the entry the user chose from "Other entries", or
- *                    null for the best match. Owned by SentenceAnalyzer because
- *                    it has to survive this component unmounting: drilling a
- *                    kanji swaps the overlay out and back, and a choice the user
- *                    made shouldn't be quietly undone by that.
+ *   onKanjiClick   - called with one kanji character; SentenceAnalyzer swaps
+ *                    this overlay for the kanji explorer
+ *   selectedId     - the entry chosen from "Other entries", or null for the
+ *                    best match. Owned by SentenceAnalyzer because it must
+ *                    survive this component unmounting — drilling a kanji swaps
+ *                    the overlay out and back, and that shouldn't undo a choice.
  *   onSelectEntry  - called with an entry id when the user picks one
  */
 
 /**
- * How many alternative entries to offer. Jisho can return twenty results for a
- * common word; past a handful the list stops being a choice and becomes a wall,
- * and the Dictionary tab is the right place for an exhaustive search.
+ * How many alternative entries to offer. Jisho can return twenty for a common
+ * word, and past a handful the list is a wall rather than a choice — an
+ * exhaustive search belongs in the Dictionary tab.
  */
 const MAX_ALTERNATIVES = 5;
 
@@ -64,38 +51,23 @@ export default function TokenInfoModal({
   onSelectEntry,
 }) {
   const lemma = token.baseForm;
-  // The lemma this Token was built from, for the one case where the merged
-  // lookup finds nothing (東京駅 → 東京). null on almost every Token; chunk.js
-  // sets it only where a derivational suffix was absorbed.
+  // The lemma this Token was built from, for when the merged lookup finds
+  // nothing (東京駅 → 東京). null on all but a derivational merge.
   const fallbackLemma = token.fallbackBaseForm;
 
-  // Same source as WordDetailCard's "Add to Deck": the picker is rendered up in
-  // App.jsx, and this is how you ask it to open. A signed-out user is sent to
-  // the Decks tab (where the login form lives) instead — that rule lives in the
-  // navigation reducer, not here.
+  // The picker is rendered up in App.jsx; this asks it to open. Whether a
+  // signed-out user gets it or the login form is the navigation reducer's rule.
   const { openDeckPicker } = useNavigation();
 
-  // The lookup, and everything around it: cancelling a request the user closed
-  // the overlay on, the loading and error states, the retry, and starting from
-  // whatever the cache already knows so a word looked up earlier renders its
-  // Entry immediately instead of blinking through "Looking up…". All shared
-  // with the kanji explorer and the Dictionary search — see
-  // src/hooks/useLookup.js.
+  // Peek matters here more than elsewhere: drilling a kanji and opening the
+  // deck picker both unmount this overlay, so it re-mounts far more than it
+  // looks. `null` from peekResolvedToken is "not known yet", mapped to
+  // `undefined` because that is how useLookup spells "go and find out" — a
+  // settled answer is an object whose `entries` may still be empty.
   //
-  // That last part earns its keep here: this overlay is unmounted and
-  // re-mounted far more than it looks, because drilling a kanji swaps it out
-  // and so does opening the deck picker.
-  //
-  // `null` from peekResolvedToken means "not known yet" — either the lookup
-  // hasn't run, or it came back empty and the fallback hasn't run — so it's
-  // mapped to `undefined`, which is how useLookup spells "go and find out". A
-  // settled answer is an object, and its `entries` may still be empty: "looked
-  // up, and this word has no entry" is a real answer, not a loading state.
-  //
-  // The error renders INSIDE this modal on purpose. The app-level banner sits
-  // in App's `.container`, underneath a fixed-position modal, and
-  // `modal-fullscreen-sm-down` hides it outright on a phone — a failed lookup
-  // would look like a word with no entry.
+  // The error renders INSIDE this modal deliberately: App's banner sits under a
+  // fixed-position modal and `modal-fullscreen-sm-down` hides it outright on a
+  // phone, so a failed lookup would read as a word with no entry.
   const {
     data: result,
     isLoading,
@@ -103,44 +75,40 @@ export default function TokenInfoModal({
     retry,
   } = useLookup(
     // Both lemmas, because both decide what comes back. SentenceAnalyzer keys
-    // this whole component by its Token, so in practice neither changes while
-    // it's mounted — but a lookup key that didn't name everything it depends
-    // on would be a trap for whoever removes that key.
+    // this component by its Token so neither changes while mounted — but a key
+    // omitting one would be a trap for whoever removes that.
     `${lemma}|${fallbackLemma ?? ''}`,
     () => resolveToken(lemma, fallbackLemma),
     () => peekResolvedToken(lemma, fallbackLemma) ?? undefined
   );
 
-  // What the lookup settled on. `shownLemma` is the word the entries are
-  // actually FOR — the Token's own lemma normally, the lemma it was built from
-  // when the fallback fired — and everything below reads from it rather than
-  // from `lemma`, so the Entry on screen and the card "Add to Deck" builds are
-  // never for a word the heading didn't name.
+  // `shownLemma` is the word the entries are FOR — the Token's own normally,
+  // the one it was built from when the fallback fired. Everything below reads
+  // it rather than `lemma`, so neither the Entry on screen nor the card "Add to
+  // Deck" builds can be for a word the heading didn't name.
   const entries = result?.entries ?? [];
   const shownLemma = result?.lemma ?? lemma;
   const usedFallback = result?.usedFallback ?? false;
 
-  // The entry on screen: whichever the user picked, else the best match.
-  // Derived at render time rather than synced into state, so nothing has to
-  // keep it in step with `entries`.
+  // Derived at render rather than synced into state, so nothing has to keep it
+  // in step with `entries`.
   const primary = pickPrimaryEntry(entries, shownLemma);
   const shown = entries.find((entry) => entry.id === selectedId) ?? primary;
   const alternatives = entries
     .filter((entry) => entry.id !== shown?.id)
     .slice(0, MAX_ALTERNATIVES);
 
-  // Both strings, because IPADIC often gives a kanji lemma for a kana surface
-  // form — できる arrives with baseForm 出来る, and 出 and 来 are drillable even
-  // though nothing in the Sentence was written in kanji.
+  // Both strings: IPADIC often gives a kanji lemma for a kana surface form —
+  // できる arrives as 出来る, and 出 and 来 are drillable even though nothing in
+  // the Sentence was written in kanji.
   const hasKanji = extractKanji(token.surface + lemma).length > 0;
 
   return (
     <Modal onClose={onClose} size="lg" scrollable>
       <div className="modal-header align-items-start">
         <div>
-          {/* The Surface form, exactly as it appeared in the Sentence. Never
-              truncated — this is the detail view, and its kanji are tap targets
-              whether or not the word itself has an entry. */}
+          {/* Never truncated: this is the detail view, and the kanji are tap
+              targets whether or not the word itself has an entry. */}
           <div
             lang="ja"
             className="fs-2 fw-bold"
@@ -149,11 +117,10 @@ export default function TokenInfoModal({
             {renderWithClickableKanji(token.surface, null, onKanjiClick)}
           </div>
 
-          {/* 飲んだ → 飲む. Shown only when the two differ; a noun repeating
-              itself is noise. The arrow is decorative, so a screen reader gets
-              the words instead — and a different phrase when this is the
-              fallback, because 東京 is not the dictionary form of 東京駅, it's
-              the word underneath it. */}
+          {/* 飲んだ → 飲む, shown only when the two differ. The arrow is
+              decorative, so a screen reader gets words instead — and different
+              words for the fallback, because 東京 is not the dictionary form of
+              東京駅, it's the word underneath it. */}
           {shownLemma !== token.surface && (
             <div className="text-muted">
               <span aria-hidden="true">→ </span>
@@ -188,8 +155,8 @@ export default function TokenInfoModal({
           </div>
         )}
 
-        {/* No entry — a name, slang, or a word Jisho simply doesn't carry. Say
-            so plainly, then point at what the learner CAN still do. */}
+        {/* A name, slang, or a word Jisho doesn't carry. Say so plainly, then
+            point at what the learner can still do. */}
         {!isLoading && !error && !shown && (
           <div className="text-muted text-center py-4">
             <p className="mb-1">
@@ -206,9 +173,9 @@ export default function TokenInfoModal({
 
         {!isLoading && !error && shown && (
           <>
-            {/* Say it in words, not just with an arrow. The learner tapped
-                東京駅 and is looking at 東京 — leaving that implicit would read
-                as the app having quietly answered a different question. */}
+            {/* In words, not just an arrow: the learner tapped 東京駅 and is
+                looking at 東京, and leaving that implicit reads as the app
+                quietly answering a different question. */}
             {usedFallback && (
               <p className="small text-body-secondary mb-3">
                 No dictionary entry for <span lang="ja">{lemma}</span> — showing{' '}
@@ -224,15 +191,12 @@ export default function TokenInfoModal({
               </div>
             )}
 
-            {/* Reading, badges, verb forms and senses — the same component the
-                Dictionary tab's WordDetailCard renders, so the two surfaces
-                can't drift apart. The verb-forms block is the reason that
-                matters here: this is exactly where a learner meets 行きました. */}
+            {/* The same component WordDetailCard renders, so the two surfaces
+                can't drift apart. */}
             <EntryBody entry={shown} />
 
-            {/* Homographs are common enough that hiding them would be a lie:
-                one lemma can be several words. Tapping one swaps what's shown
-                above — no new request, the results are already here. */}
+            {/* One lemma can be several words, so hiding homographs would be a
+                lie. Tapping one swaps what's shown above with no new request. */}
             {alternatives.length > 0 && (
               <div className="mt-4 pt-3 border-top">
                 <div className="small text-body-secondary fw-semibold mb-2">Other entries</div>
@@ -259,16 +223,13 @@ export default function TokenInfoModal({
         )}
       </div>
 
-      {/* Only once a Token has actually resolved to an Entry — there is nothing
-          to add while the lookup is in flight, and a name like 山田 has no card
-          to build. Adding it here rather than to EntryBody is deliberate: that
-          component excludes anything the two surfaces frame differently, and
-          the Dictionary card puts this button beside the headword.
+      {/* Only once a Token resolved to an Entry: a name like 山田 has no card to
+          build. Here rather than in EntryBody because the Dictionary card puts
+          this button beside the headword instead.
 
-          A footer rather than the end of the body because the Modal is
-          `scrollable` — Bootstrap pins the footer and scrolls only the body, so
-          the button stays reachable under a long list of senses instead of
-          being buried beneath it. */}
+          A footer, not the end of the body, because the Modal is `scrollable` —
+          Bootstrap pins the footer, so the button stays reachable under a long
+          list of senses. */}
       {!isLoading && !error && shown && (
         <div className="modal-footer border-0 justify-content-end">
           <button

@@ -2,19 +2,13 @@ import { getVerbForms } from '../utils/conjugate';
 
 /**
  * Everything an Entry says below its Headword: reading, badges, verb forms and
- * senses.
+ * senses. Rendered by both WordDetailCard and TokenInfoModal, so the two
+ * surfaces read as one product structurally rather than by agreement — copied
+ * markup had already drifted and lost the verb-forms block.
  *
- * Two surfaces show an Entry — the Dictionary tab's WordDetailCard and the
- * Sentence tab's TokenInfoModal — and they must read as one product. That was
- * first attempted by copying the markup, which drifted immediately: the copy
- * lost the verb-forms block, so 行きました in the Sentence tab (exactly where a
- * learner meets a conjugated verb) showed less than the Dictionary tab did.
- * One component makes the promise structural instead of aspirational.
- *
- * Deliberately excludes the Headword itself. The two callers frame it
- * differently — the card makes it a heading beside "Add to Deck", the overlay
- * puts it in the modal header next to the Surface form it came from — and
- * forcing one layout on both is what would make this component awkward to use.
+ * Excludes the Headword itself, which the two callers frame differently: a
+ * heading beside "Add to Deck" in the card, the modal header next to the
+ * Surface form in the overlay.
  *
  * Props:
  *   entry - a normalised entry from src/api/words.js
@@ -22,7 +16,7 @@ import { getVerbForms } from '../utils/conjugate';
 export default function EntryBody({ entry }) {
   if (!entry) return null;
 
-  // Verbs get an extra block showing dictionary + polite (ます) forms; null otherwise.
+  // Dictionary and polite (ます) forms for verbs; null for anything else.
   const verbForms = getVerbForms(entry);
 
   return (

@@ -15,11 +15,9 @@ export default function DeckList() {
   const [showCreate, setShowCreate] = useState(false);
   const [editingDeck, setEditingDeck] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  // Create and edit used to close their modal and lean on the app-level banner,
-  // which no longer reports writes — so a failure is shown here, on the deck
-  // list itself. Those two close first on purpose: CreateDeckModal has no busy
-  // state, so leaving it open during the round trip leaves a live submit button
-  // that a second tap would fire again.
+  // Create and edit failures show on the list itself, because both close their
+  // modal first: CreateDeckModal has no busy state, so leaving it open during
+  // the round trip leaves a live submit button a second tap would fire again.
   const [actionError, setActionError] = useState('');
   // Delete is the exception — see handleDelete.
   const [deleteError, setDeleteError] = useState('');
@@ -38,11 +36,9 @@ export default function DeckList() {
     setActionError(result.ok ? '' : writeFailureMessage(result, "Couldn't save those changes. Please try again."));
   };
 
-  // Unlike create and edit, this one keeps its modal open until the write
-  // succeeds, and reports failure INSIDE it — the rule CardDetailModal already
-  // follows: a confirmation box disappearing reads as "done". Closing it on a
-  // failed delete would leave the deck sitting in a list the user believes
-  // they just emptied, with the explanation scrolled off the top of the page.
+  // Keeps its modal open until the write succeeds and reports failure INSIDE
+  // it: a confirmation box disappearing reads as "done", which would leave the
+  // deck sitting in a list the user believes they just emptied.
   const handleDelete = async (deckId) => {
     setIsDeleting(true);
     setDeleteError('');
@@ -61,8 +57,8 @@ export default function DeckList() {
         </button>
       </div>
 
-      {/* role="alert" matches the convention in App.jsx and CardDetailModal.jsx,
-          so a failure is announced rather than only seen. */}
+      {/* role="alert" matches App.jsx and CardDetailModal.jsx, so a failure is
+          announced rather than only seen. */}
       {actionError && (
         <div className="alert alert-warning alert-dismissible d-flex justify-content-between align-items-center" role="alert">
           <span>{actionError}</span>
@@ -116,11 +112,9 @@ export default function DeckList() {
                   </div>
 
                   <div className="card-footer bg-transparent border-top-0 d-flex gap-2 pt-0 pb-3 px-3">
-                    {/* "Study (n)" starts a session directly; with nothing due
-                        it opens the deck instead — so the label matches the
-                        action. Empty decks stay openable (clicking the card
-                        body already opened them, so the button shouldn't
-                        disagree). */}
+                    {/* The label matches the action: with nothing due this
+                        opens the deck rather than starting a session, which is
+                        what tapping the card body already does. */}
                     <button
                       className="btn btn-dark btn-sm flex-grow-1"
                       onClick={() =>
@@ -129,9 +123,8 @@ export default function DeckList() {
                     >
                       {dueCount > 0 ? `Study (${dueCount})` : 'View Deck'}
                     </button>
-                    {/* Icon-only buttons: `touch-target` gives them a 44px
-                        minimum, and aria-label carries the accessible name
-                        since the `title` tooltip never shows on touch. */}
+                    {/* Icon-only, so aria-label carries the accessible name —
+                        a `title` tooltip never shows on touch. */}
                     <button
                       className="btn btn-outline-secondary btn-sm touch-target"
                       onClick={e => { e.stopPropagation(); setEditingDeck(deck); }}
@@ -169,15 +162,13 @@ export default function DeckList() {
       )}
 
       {confirmDelete && (
-        // closeOnBackdrop={false} preserves this modal's existing behaviour —
-        // it never had a backdrop click handler. That matters more on touch,
-        // where a stray tap outside a destructive confirm is easy to make.
+        // A stray tap outside a destructive confirm is easy to make on touch.
         <Modal size="sm" closeOnBackdrop={false} onClose={() => { setConfirmDelete(null); setDeleteError(''); }}>
           <div className="modal-body text-center py-4">
             <p className="fw-semibold mb-1">Delete &quot;{confirmDelete.name}&quot;?</p>
             <p className="text-muted small">This will remove the deck and all {confirmDelete.cards.length} cards.</p>
-            {/* Inside the modal, never the list behind it — this box is what's
-                on screen, so it has to be what carries the bad news. */}
+            {/* Inside the modal, never the list behind it: this box is what's
+                on screen, so it has to carry the bad news. */}
             {deleteError && (
               <div className="alert alert-warning py-2 small mb-0 mt-3" role="alert">
                 {deleteError}

@@ -8,9 +8,9 @@ export default function CreateDeckModal({ onSave, onClose, existingDeck }) {
   const [categoryType, setCategoryType] = useState(existingDeck?.category?.type || 'custom');
   const [categoryValue, setCategoryValue] = useState(existingDeck?.category?.value || '');
 
-  // Switching category type clears the value, since a JLPT level and a custom
-  // label aren't interchangeable. Doing this in the handler (rather than an
-  // effect) preserves the prefilled value when editing an existing deck.
+  // Switching category type clears the value — a JLPT level and a custom label
+  // aren't interchangeable. In the handler rather than an effect, so editing an
+  // existing deck keeps its prefilled value.
   const handleCategoryTypeChange = (type) => {
     setCategoryType(type);
     setCategoryValue('');

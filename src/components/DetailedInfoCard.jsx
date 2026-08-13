@@ -1,21 +1,16 @@
-// Shared helper: renders a string with its kanji characters as clickable
-// buttons. Extracted to src/utils/clickableKanji.jsx so the word-lookup cards
-// can reuse the exact same behaviour.
 import { renderWithClickableKanji } from '../utils/clickableKanji';
 import { useNavigation } from '../context/navigationContext';
 
-// Presentational Component
-//
-// Shows the full detail for a single kanji: readings, meanings, stats, and its
-// most common words (each kanji in them clickable for drill-down).
+// Full detail for a single kanji: readings, meanings, stats, and its most
+// common words, whose kanji are clickable for drill-down.
 //
 // Props:
 //   selectedData - enriched kanji entry (kanjiapi data + commonWords)
-//   onClose      - close the card (the X button)
-//   onKanjiClick - (char) → drill into another kanji (from common words)
+//   onClose      - close the card
+//   onKanjiClick - called with one kanji character, to drill into it
 export default function DetailedInfoCard({ selectedData, onClose, onKanjiClick }) {
-  // "Add to Deck" used to arrive as a prop drilled down from App through Query
-  // and KanjiInfoModal, neither of which used it. Read it straight from context.
+  // From context rather than a prop: Query and KanjiInfoModal were only
+  // forwarding it.
   const { openDeckPicker } = useNavigation();
 
   if (!selectedData) return null;
@@ -89,9 +84,9 @@ export default function DetailedInfoCard({ selectedData, onClose, onKanjiClick }
           <div className="mb-3"><strong>Notes:</strong> {selectedData.notes}</div>
         )}
 
-        {/* The word list comes from a different service than the kanji data
-            above, so it can fail on its own. Saying so beats rendering nothing,
-            which is what a kanji with genuinely no common words looks like. */}
+        {/* A different service from the kanji data above, so it fails on its
+            own — and rendering nothing is what a kanji with genuinely no common
+            words looks like. */}
         {selectedData.commonWordsUnavailable && (
           <p className="text-muted small mb-0">
             Common words couldn’t be loaded. Close and re-open to try again.
@@ -105,14 +100,11 @@ export default function DetailedInfoCard({ selectedData, onClose, onKanjiClick }
             </h5>
 
             <div className="ps-2">
-              {/* commonWords arrive already normalised (see src/api/words.js),
-                  so each entry has the same { word, reading, meanings } shape
-                  the word lookup uses. */}
+              {/* Already normalised by src/api/words.js, so each entry has the
+                  same shape the word lookup returns. */}
               {selectedData.commonWords.map((word) => (
                 <div key={word.id} className="mb-2">
-                  {/* Render the word with kanji chars as clickable buttons.
-                      onKanjiClick may be undefined if this component is used
-                      outside the kanji explorer; in normal use it's provided. */}
+                  {/* onKanjiClick is absent outside the kanji explorer. */}
                   <strong className="text-info-emphasis fs-5">
                     {onKanjiClick
                       ? renderWithClickableKanji(word.word, selectedData.kanji, onKanjiClick)
