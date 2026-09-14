@@ -49,7 +49,7 @@ busy/error flags). Context is for state that crosses component boundaries.
   (Jisho word search) → `WordList` / `WordDetailCard`. Tapping a kanji opens
   `KanjiInfoModal` → `src/api/kanji.js` (kanjiapi.dev enriched with Jisho) →
   `DetailedInfoCard`, with drill-down kanji→kanji. **All Jisho/kanji fetches go
-  through the Lambda proxy** (`JISHO_PROXY` in `src/api/kanji.js`) — never call Jisho
+  through the Lambda proxy** (`JISHO_PROXY` in `src/api/jishoProxy.js`) — never call Jisho
   directly from a component (CORS). Verb forms come from `src/utils/conjugate.js`.
 - **Flashcards (login-gated):** the "My Decks" tab renders the Amplify
   `Authenticator` (Cognito) when logged out. When logged in, `useDecks.js` talks to
@@ -145,13 +145,12 @@ React 19, Vite 8, AWS Amplify Gen 2 (Cognito, AppSync, DynamoDB, Lambda), Bootst
 Vitest, ESLint, GitHub Actions CI, Amplify Hosting. External data: kanjiapi.dev and Jisho
 (via the Lambda proxy).
 
-## Agents (`.Codex/agents/`)
+## Agents (`.codex/agents/`)
 - `feature-builder` — new features, components, study modes.
 - `bug-fixer` — diagnose and fix broken/unexpected behavior.
 - `code-reviewer` — pre-merge review (correctness, security, conventions).
 - `test-writer` — Vitest unit tests for pure logic and utilities.
 - `amplify-backend` — data schema, auth, AppSync/DynamoDB, backend sandbox/deploy.
-- `deploy-manager` — git/PR flow + Amplify deploy checks.
 - `content-strategist` — study mechanics grounded in language-acquisition research.
 
 ### When to use them (rule)
@@ -162,8 +161,9 @@ Launch an agent at these points without waiting to be asked:
 - **New pure logic in `src/utils/` or `src/api/`** — `test-writer`. There is no
   jsdom/RTL in this project, so pure logic is the only thing that *can* be tested;
   don't let it ship untested.
-- **"Where/how does X work?" spanning several files** — `Explore`, rather than
-  opening files one at a time.
+- **"Where/how does X work?" spanning several files** — search the codebase
+  broadly (grep across `src/` and `amplify/`) rather than opening files one at a
+  time.
 - **Any study-mechanic decision** (intervals, quiz formats, scheduling, progress)
   — `content-strategist` **before** writing code, per the domain note below.
 - **Schema, auth, or AppSync/DynamoDB changes** — `amplify-backend`.

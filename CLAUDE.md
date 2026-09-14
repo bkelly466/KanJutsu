@@ -49,7 +49,7 @@ busy/error flags). Context is for state that crosses component boundaries.
   (Jisho word search) → `WordList` / `WordDetailCard`. Tapping a kanji opens
   `KanjiInfoModal` → `src/api/kanji.js` (kanjiapi.dev enriched with Jisho) →
   `DetailedInfoCard`, with drill-down kanji→kanji. **All Jisho/kanji fetches go
-  through the Lambda proxy** (`JISHO_PROXY` in `src/api/kanji.js`) — never call Jisho
+  through the Lambda proxy** (`JISHO_PROXY` in `src/api/jishoProxy.js`) — never call Jisho
   directly from a component (CORS). Verb forms come from `src/utils/conjugate.js`.
 - **Flashcards (login-gated):** the "My Decks" tab renders the Amplify
   `Authenticator` (Cognito) when logged out. When logged in, `useDecks.js` talks to
