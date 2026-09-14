@@ -14,6 +14,10 @@ import type { LambdaFunctionURLEvent, APIGatewayProxyResultV2 } from 'aws-lambda
 
 const JISHO_API_BASE = 'https://jisho.org/api/v1/search/words';
 
+// Jisho 403s the default User-Agent Node's fetch sends ("node"), so requests
+// must identify themselves as something other than a bare runtime.
+const USER_AGENT = 'KanJutsu/1.0 (+https://www.kanjutsu.com)';
+
 export const handler = async (
   event: LambdaFunctionURLEvent
 ): Promise<APIGatewayProxyResultV2> => {
@@ -60,9 +64,17 @@ export const handler = async (
 
   try {
     const jishoUrl = `${JISHO_API_BASE}?keyword=${encodeURIComponent(keyword)}`;
-    const response = await fetch(jishoUrl);
+    // Aborts short of the 10s function timeout: a timed-out Lambda returns a
+    // bare 502 without the CORS headers, which the browser reports as a network
+    // error. Failing here instead keeps the response well-formed.
+    const response = await fetch(jishoUrl, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(8000),
+    });
 
     if (!response.ok) {
+      // Jisho's actual status, which the 502 below discards.
+      console.error('Jisho request failed', { status: response.status, keyword });
       return {
         statusCode: 502,
         headers: corsHeaders,
